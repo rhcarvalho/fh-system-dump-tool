@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+############################################################
+# Red Hat Mobile System Dump
+#
+# Copyright (c) 2016, Red Hat Mobile
+############################################################
+set -o errexit
+set -o nounset
+set -o pipefail
+###################
+# Global Variables
+###################
+DATESTAMP=$(date +%Y-%m-%d_%H%M%S)
+REPORT_DIR=./reports
+REPORT_ARCHIVE=${REPORT_DIR}/${DATESTAMP}
+DATA_DUMP_DIR=${REPORT_ARCHIVE}/data
+OC_RESOURCES=(dc svc pods events)
+
+###################
+# Functions
+###################
+function oc_get_project_resources {    
+  local PROJECTS
+  local PROJECT
+  local RESOURCE
+  PROJECTS=$(oc_get_projects)
+  for PROJECT in ${PROJECTS}; do
+    PROJECT_DIR="${DATA_DUMP_DIR}/projects/${PROJECT}/"
+    echo "Retrieving OC resources for project: ${PROJECT}"
+    mkdir -p ${PROJECT_DIR} 
+    for RESOURCE in ${OC_RESOURCES[@]}; do
+      oc get ${RESOURCE} -o json -n ${PROJECT} > "${DATA_DUMP_DIR}/projects/${PROJECT}/${RESOURCE}.json"
+    done;
+  done
+}
+
+function oc_get_projects {
+  oc get projects -o jsonpath='{.items[*].metadata.name}'
+}
+
+function archive_data {
+  # Generate Archive file of gathered data
+  tar -czf ${REPORT_DIR}/report_${DATESTAMP}.tar.gz -C ${DATA_DUMP_DIR} .
+  echo ""
+  echo "Generated Report: ${REPORT_DIR}/report_${DATESTAMP}.tar.gz"
+}
+
+function cleanup {
+  # Clean up raw data directories
+  rm -rf ${REPORT_ARCHIVE}
+}
+
+###################
+# Main
+###################
+function main {
+  trap 'cleanup' 0
+  oc_get_project_resources
+  archive_data
+}
+
+main
