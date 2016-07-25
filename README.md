@@ -1,26 +1,31 @@
 # fh-system-dump-tool
-This repository contains the system dump tool for the RHMAP On-Prem product
 
-##Prerequisites
-Installation of openshift-cli for oc binary
-https://docs.openshift.com/enterprise/3.2/cli_reference
+This repository contains the system dump tool for the RHMAP On-Prem product.
 
-##Running
-The follow section outlines the steps required to run the system dump tool
+## Building
 
-####Login to Openshift Cluster as an Administrative User
-```bash
+Building requires Go 1.6.
+
+```
+go build
+```
+
+## Runtime Prerequisites
+
+- Installation of [openshift-cli](https://docs.openshift.com/enterprise/3.2/cli_reference) for `oc` binary.
+
+## Running
+
+The follow section outlines the steps required to run the system dump tool.
+
+### 1. Login to OpenShift Cluster as an Administrative User
+
+```
 oc login <public-master-url>
 ```
-####Run System Dump Tool
-```bash
-./dump
+
+### 2. Run the System Dump Tool
+
 ```
-
-##View Results
-Once the system dump tool has been run, a new archived report is generated in the reports directory of this repository. See example below
-
-```bash
-ls ./reports/
-report_2016-07-12_100544.tar.gz
+./fh-system-dump-tool
 ```
