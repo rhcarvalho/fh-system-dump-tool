@@ -4,6 +4,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -23,6 +24,8 @@ const (
 	// create directories with a timestamp. Based on time.RFC3339.
 	dumpTimestampFormat = "2006-01-02T15-04-05Z0700"
 )
+
+var maxParallelTasks = flag.Int("p", runtime.NumCPU(), "max number of tasks to run in parallel")
 
 // A Task performs some part of the RHMAP System Dump Tool.
 type Task func() error
@@ -156,6 +159,12 @@ func printError(err error) {
 }
 
 func main() {
+	flag.Parse()
+	if !(*maxParallelTasks > 0) {
+		printError(fmt.Errorf("argument to -p flag must be greater than 0"))
+		os.Exit(1)
+	}
+
 	start := time.Now().UTC()
 	startTimestamp := start.Format(dumpTimestampFormat)
 	basepath := filepath.Join(dumpDir, startTimestamp)
@@ -178,8 +187,21 @@ func main() {
 	}
 
 	fmt.Println("Starting RHMAP System Dump Tool...")
+	defer fmt.Printf("\nDumped system information to: %s\n", dumpDir)
+
+	// Avoid the creating goroutines and other controls if we're executing
+	// tasks sequentially.
+	if *maxParallelTasks == 1 {
+		for _, task := range tasks {
+			task()
+			fmt.Print(".")
+		}
+		return
+	}
+	// Run at most N tasks in parallel, and wait for all of them to
+	// complete.
 	var wg sync.WaitGroup
-	sem := make(chan struct{}, runtime.NumCPU())
+	sem := make(chan struct{}, *maxParallelTasks)
 	for _, task := range tasks {
 		task := task
 		wg.Add(1)
@@ -192,5 +214,4 @@ func main() {
 		}()
 	}
 	wg.Wait()
-	fmt.Printf("\nDumped system information to: %s\n", dumpDir)
 }
