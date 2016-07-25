@@ -19,7 +19,6 @@ const (
 	dumpDir = "rhmap-dumps"
 	// dumpTimestampFormat is a layout for use with Time.Format. Used to
 	// create directories with a timestamp. Based on time.RFC3339.
-	// REVIEW: the timezone format
 	dumpTimestampFormat = "2006-01-02T15-04-05Z0700"
 )
 
@@ -155,7 +154,7 @@ func printError(err error) {
 }
 
 func main() {
-	start := time.Now()
+	start := time.Now().UTC()
 	startTimestamp := start.Format(dumpTimestampFormat)
 	basepath := filepath.Join(dumpDir, startTimestamp)
 
