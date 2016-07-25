@@ -9,7 +9,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -176,9 +178,19 @@ func main() {
 	}
 
 	fmt.Println("Starting RHMAP System Dump Tool...")
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, runtime.NumCPU())
 	for _, task := range tasks {
-		task()
-		fmt.Print(".")
+		task := task
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			task()
+			fmt.Print(".")
+			<-sem
+		}()
 	}
+	wg.Wait()
 	fmt.Printf("\nDumped system information to: %s\n", dumpDir)
 }
