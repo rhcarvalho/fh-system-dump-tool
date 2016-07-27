@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"reflect"
@@ -98,11 +99,11 @@ func TestResourceDefinitions(t *testing.T) {
 	}
 	for _, tt := range tests {
 		var stdout, stderr bytes.Buffer
-		outFor := func(project, resource string) (io.Writer, error) {
-			return &stdout, nil
+		outFor := func(project, resource string) (io.Writer, io.Closer, error) {
+			return &stdout, ioutil.NopCloser(nil), nil
 		}
-		errOutFor := func(project, resource string) (io.Writer, error) {
-			return &stderr, nil
+		errOutFor := func(project, resource string) (io.Writer, io.Closer, error) {
+			return &stderr, ioutil.NopCloser(nil), nil
 		}
 		task := resourceDefinitions(cmdFactory, "test-project", []string{"svc", "pod", "dc"}, outFor, errOutFor)
 
