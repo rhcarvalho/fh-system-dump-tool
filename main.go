@@ -203,13 +203,13 @@ func main() {
 
 	var resources = []string{"deploymentconfigs", "pods", "services", "events"}
 
-	// Add tasks to fetch resource definitions.
 	projects, err := GetProjects()
 	if err != nil {
 		printError(err)
 		os.Exit(1)
 	}
 
+	// Add tasks to fetch resource definitions.
 	for _, p := range projects {
 		outFor := outToTGZ("json", tarFile)
 		errOutFor := outToTGZ("stderr", tarFile)
