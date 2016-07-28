@@ -140,12 +140,12 @@ func resourceDefinitions(cmdFactory getProjectResourceCmdFactory, project string
 // GetProjects returns a list of project names visible by the current logged in
 // user.
 func GetProjects() ([]string, error) {
-	return getProjects(exec.Command("oc", "get", "projects", "-o=jsonpath={.items[*].metadata.name}"))
+	return getSpaceSeparated(exec.Command("oc", "get", "projects", "-o=jsonpath={.items[*].metadata.name}"))
 }
 
-// getProjects calls cmd, expected to output a space-separated list of project
-// names to stdout, and returns a list of project names.
-func getProjects(cmd *exec.Cmd) ([]string, error) {
+// getSpaceSeparated calls cmd, expected to output a space-separated list of
+// words to stdout, and returns the words.
+func getSpaceSeparated(cmd *exec.Cmd) ([]string, error) {
 	var projects []string
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

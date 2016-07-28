@@ -54,7 +54,7 @@ func TestHelperProcess(t *testing.T) {
 	}
 }
 
-func TestGetProjects(t *testing.T) {
+func TestGetSpaceSeparated(t *testing.T) {
 	tests := []struct {
 		projects []string
 		want     []string
@@ -66,13 +66,13 @@ func TestGetProjects(t *testing.T) {
 	}
 	for _, tt := range tests {
 		cmd := helperCommand("echo", tt.projects...)
-		got, err := getProjects(cmd)
+		got, err := getSpaceSeparated(cmd)
 		if err != nil {
-			t.Errorf("getProjects(%v) returned non-nil error: %v", cmd.Args, err)
+			t.Errorf("getSpaceSeparated(%v) returned non-nil error: %v", cmd.Args, err)
 			continue
 		}
 		if !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("getProjects(%v) = %v, want %v", cmd.Args, got, tt.want)
+			t.Errorf("getSpaceSeparated(%v) = %v, want %v", cmd.Args, got, tt.want)
 		}
 	}
 }
