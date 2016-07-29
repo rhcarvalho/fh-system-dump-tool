@@ -37,115 +37,48 @@ func (e errorList) Error() string {
 	return "multiple errors:\n" + strings.Join(e, "\n")
 }
 
-// A projectResourceWriterFactory generates io.Writers for dumping data of a
-// particular resource type within a project.
-type projectResourceWriterCloserFactory func(project, resource string) (io.Writer, io.Closer, error)
+func runCmdCaptureOutput(cmd *exec.Cmd, project, resource string, outFor, errOutFor projectResourceWriterCloserFactory) error {
+	var err error
+	var stdoutCloser, stderrCloser io.Closer
 
-// A getProjectResourceCmdFactory generates commands to get resources of a given
-// type in a project.
-type getProjectResourceCmdFactory func(project, resource string) *exec.Cmd
-
-// outToFile returns a function that creates an io.Writer that writes to a file
-// in basepath with extension, given a project and resource.
-func outToFile(basepath, extension string) projectResourceWriterCloserFactory {
-	return func(project, resource string) (io.Writer, io.Closer, error) {
-		projectpath := filepath.Join(basepath, "projects", project)
-		err := os.MkdirAll(projectpath, 0770)
-		if err != nil {
-			return nil, nil, err
-		}
-		f, err := os.Create(filepath.Join(projectpath, resource+"."+extension))
-		if err != nil {
-			return nil, nil, err
-		}
-		return f, f, nil
+	cmd.Stdout, stdoutCloser, err = outFor(project, resource)
+	if err != nil {
+		// Since we couldn't get an io.Writer for cmd.Stdout, give up
+		// processing this resource type.
+		return err
 	}
-}
+	defer stdoutCloser.Close()
 
-// OutToTGZ returns an anonymous factory function that will create an io.Writer which writes into the tar archive
-// provided. The path inside the tar.gz file is calculated from the project and resource provided
-func outToTGZ(extension string, tarFile *Archive) projectResourceWriterCloserFactory {
-	return func(project, resource string) (io.Writer, io.Closer, error) {
-		projectPath := filepath.Join("projects", project)
-		writer := tarFile.GetWriterToFile(filepath.Join(projectPath, resource+"."+extension))
-		return writer, writer, nil
+	var buf bytes.Buffer
+	cmd.Stderr, stderrCloser, err = errOutFor(project, resource)
+	if err != nil {
+		// We can possibly try to run the command without an io.Writer
+		// from errOutFor. In this case, we'll attach an in-memory
+		// buffer so that we can include the stderr output in errors.
+		cmd.Stderr = &buf
+	} else {
+		defer stderrCloser.Close()
+		// Send stderr to both the io.Writer from errOutFor, and an
+		// in-memory buffer, used to enrich error messages.
+		cmd.Stderr = io.MultiWriter(cmd.Stderr, &buf)
 	}
-}
 
-// ResourceDefinitions fetches the JSON resource definition for all given types
-// in project. For each resource type, it uses outFor and errOutFor to get
-// io.Writers to write, respectively, the JSON output and any eventual error
-// message.
-func ResourceDefinitions(project string, types []string, outFor, errOutFor projectResourceWriterCloserFactory) Task {
-	return resourceDefinitions(func(project, resource string) *exec.Cmd {
-		return exec.Command("oc", "-n", project, "get", resource, "-o=json")
-	}, project, types, outFor, errOutFor)
-}
-
-func resourceDefinitions(cmdFactory getProjectResourceCmdFactory, project string, types []string, outFor, errOutFor projectResourceWriterCloserFactory) Task {
-	return func() error {
-		var errors errorList
-		// NOTE: we could fetch all resources of all types in a single
-		// call to oc, by passing a comma-separated list of resource
-		// types. Instead, we call oc multiple times to send the output
-		// to different files without processing the contents of the
-		// output from oc.
-		for _, resource := range types {
-			var err error
-			var stdoutCloser, stderrCloser io.Closer
-
-			cmd := cmdFactory(project, resource)
-			cmd.Stdout, stdoutCloser, err = outFor(project, resource)
-			if err != nil {
-				errors = append(errors, err.Error())
-				// Since we couldn't get an io.Writer for
-				// cmd.Stdout, give up processing this resource
-				// type, and skip to the next type.
-				continue
-			}
-			defer stdoutCloser.Close()
-
-			var buf bytes.Buffer
-			cmd.Stderr, stderrCloser, err = errOutFor(project, resource)
-			if err != nil {
-				errors = append(errors, err.Error())
-				// We can possibly try to run the command
-				// without an io.Writer from errOutFor. In this
-				// case, we'll attach an in-memory buffer so
-				// that we can include the stderr output in
-				// errors.
-				cmd.Stderr = &buf
-			} else {
-				// Send stderr to both the io.Writer from
-				// errOutFor, and an in-memory buffer, used to
-				// enrich error messages.
-				cmd.Stderr = io.MultiWriter(cmd.Stderr, &buf)
-			}
-			defer stderrCloser.Close()
-
-			// TODO: limit the execution time with a timeout.
-			err = cmd.Run()
-			if err != nil {
-				errors = append(errors, fmt.Sprintf("command %q: %v: %v", strings.Join(cmd.Args, " "), err, buf.String()))
-				continue
-			}
-		}
-		if len(errors) > 0 {
-			return errors
-		}
-		return nil
+	// TODO: limit the execution time with a timeout.
+	if err = cmd.Run(); err != nil {
+		return fmt.Errorf("command %q: %v: %v", strings.Join(cmd.Args, " "), err, buf.String())
 	}
+	return nil
 }
 
 // GetProjects returns a list of project names visible by the current logged in
 // user.
 func GetProjects() ([]string, error) {
-	return getProjects(exec.Command("oc", "get", "projects", "-o=jsonpath={.items[*].metadata.name}"))
+	return getSpaceSeparated(exec.Command("oc", "get", "projects", "-o=jsonpath={.items[*].metadata.name}"))
 }
 
-// getProjects calls cmd, expected to output a space-separated list of project
-// names to stdout, and returns a list of project names.
-func getProjects(cmd *exec.Cmd) ([]string, error) {
+// getSpaceSeparated calls cmd, expected to output a space-separated list of
+// words to stdout, and returns the words.
+func getSpaceSeparated(cmd *exec.Cmd) ([]string, error) {
 	var projects []string
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -183,9 +116,15 @@ func main() {
 
 	start := time.Now().UTC()
 	startTimestamp := start.Format(dumpTimestampFormat)
-	basepath := filepath.Join(dumpDir, startTimestamp)
 
-	archiveFile, err := os.Create(basepath + ".tar.gz")
+	// Create the dumpDir if necessary.
+	err := os.MkdirAll(dumpDir, 0770)
+	if err != nil {
+		printError(err)
+		os.Exit(1)
+	}
+
+	archiveFile, err := os.Create(filepath.Join(dumpDir, startTimestamp+".tar.gz"))
 	if err != nil {
 		printError(err)
 		os.Exit(1)
@@ -203,13 +142,13 @@ func main() {
 
 	var resources = []string{"deploymentconfigs", "pods", "services", "events"}
 
-	// Add tasks to fetch resource definitions.
 	projects, err := GetProjects()
 	if err != nil {
 		printError(err)
 		os.Exit(1)
 	}
 
+	// Add tasks to fetch resource definitions.
 	for _, p := range projects {
 		outFor := outToTGZ("json", tarFile)
 		errOutFor := outToTGZ("stderr", tarFile)
