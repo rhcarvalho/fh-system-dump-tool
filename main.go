@@ -116,9 +116,15 @@ func main() {
 
 	start := time.Now().UTC()
 	startTimestamp := start.Format(dumpTimestampFormat)
-	basepath := filepath.Join(dumpDir, startTimestamp)
 
-	archiveFile, err := os.Create(basepath + ".tar.gz")
+	// Create the dumpDir if necessary.
+	err := os.MkdirAll(dumpDir, 0770)
+	if err != nil {
+		printError(err)
+		os.Exit(1)
+	}
+
+	archiveFile, err := os.Create(filepath.Join(dumpDir, startTimestamp+".tar.gz"))
 	if err != nil {
 		printError(err)
 		os.Exit(1)
