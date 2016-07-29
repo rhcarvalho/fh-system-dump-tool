@@ -27,8 +27,9 @@ func outToFile(basepath, extension string) projectResourceWriterCloserFactory {
 	}
 }
 
-// OutToTGZ returns an anonymous factory function that will create an io.Writer which writes into the tar archive
-// provided. The path inside the tar.gz file is calculated from the project and resource provided
+// outToTGZ returns an anonymous factory function that will create an io.Writer
+// which writes into the tar archive provided. The path inside the tar.gz file
+// is calculated from the project and resource provided.
 func outToTGZ(extension string, tarFile *Archive) projectResourceWriterCloserFactory {
 	return func(project, resource string) (io.Writer, io.Closer, error) {
 		projectPath := filepath.Join("projects", project)
