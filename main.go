@@ -72,10 +72,10 @@ func outToTGZ(extension string, tarFile *Archive) projectResourceWriterCloserFac
 	}
 }
 
-// ResourceDefinitions fetches the JSON resource definition for all given types
-// in project. For each resource type, it uses outFor and errOutFor to get
-// io.Writers to write, respectively, the JSON output and any eventual error
-// message.
+// ResourceDefinitions is a task factory for tasks that fetch the JSON resource
+// definition for all given types in project. For each resource type, the task
+// uses outFor and errOutFor to get io.Writers to write, respectively, the JSON
+// output and any eventual error message.
 func ResourceDefinitions(project string, types []string, outFor, errOutFor projectResourceWriterCloserFactory) Task {
 	return resourceDefinitions(func(project, resource string) *exec.Cmd {
 		return exec.Command("oc", "-n", project, "get", resource, "-o=json")
