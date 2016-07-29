@@ -116,12 +116,12 @@ func resourceDefinitions(cmdFactory getProjectResourceCmdFactory, project string
 				// errors.
 				cmd.Stderr = &buf
 			} else {
+				defer stderrCloser.Close()
 				// Send stderr to both the io.Writer from
 				// errOutFor, and an in-memory buffer, used to
 				// enrich error messages.
 				cmd.Stderr = io.MultiWriter(cmd.Stderr, &buf)
 			}
-			defer stderrCloser.Close()
 
 			// TODO: limit the execution time with a timeout.
 			err = cmd.Run()
