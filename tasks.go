@@ -38,8 +38,8 @@ func GetAllTasks(tarFile *Archive) ([]Task, error) {
 func GetResourceDefinitionsTasks(projects, resources []string, tarFile *Archive) ([]Task, error) {
 	var tasks []Task
 	for _, p := range projects {
-		outFor := outToTGZ("json", tarFile)
-		errOutFor := outToTGZ("stderr", tarFile)
+		outFor := outToTGZ("", "json", tarFile)
+		errOutFor := outToTGZ("", "stderr", tarFile)
 		task := ResourceDefinitions(p, resources, outFor, errOutFor)
 		tasks = append(tasks, task)
 	}
