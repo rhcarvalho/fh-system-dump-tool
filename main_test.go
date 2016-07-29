@@ -105,7 +105,7 @@ func TestResourceDefinitions(t *testing.T) {
 		errOutFor := func(project, resource string) (io.Writer, io.Closer, error) {
 			return &stderr, ioutil.NopCloser(nil), nil
 		}
-		task := resourceDefinitions(cmdFactory, "test-project", []string{"svc", "pod", "dc"}, outFor, errOutFor)
+		task := resourceDefinitions(cmdFactory, tt.project, tt.types, outFor, errOutFor)
 
 		if err := task(); err != nil {
 			t.Errorf("task failed: %v", err)
