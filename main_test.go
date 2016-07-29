@@ -45,6 +45,9 @@ func TestHelperProcess(t *testing.T) {
 			iargs = append(iargs, s)
 		}
 		fmt.Println(iargs...)
+	case "stderrfail":
+		fmt.Fprintf(os.Stderr, "some stderr text\n")
+		os.Exit(1)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command %q\n", cmd)
 		os.Exit(2)

@@ -26,7 +26,7 @@ func resourceDefinitions(cmdFactory getProjectResourceCmdFactory, project string
 		// output from oc.
 		for _, resource := range types {
 			cmd := cmdFactory(project, resource)
-			if err := runCmdCaptureOutput(cmd, project, resource, outFor, errOutFor); err != nil {
+			if err := runCmdCaptureOutputDeprecated(cmd, project, resource, outFor, errOutFor); err != nil {
 				// In case of errors, report it, skip the
 				// current resource type and proceed with the
 				// next.
