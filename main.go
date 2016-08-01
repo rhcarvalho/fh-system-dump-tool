@@ -157,7 +157,7 @@ func main() {
 	}
 
 	fmt.Println("Starting RHMAP System Dump Tool...")
-	defer fmt.Printf("\nDumped system information to: %s\n", dumpDir)
+	defer fmt.Printf("\nDumped system information to: %s\n", archiveFile.Name())
 
 	// Avoid the creating goroutines and other controls if we're executing
 	// tasks sequentially.
