@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -114,6 +115,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	log.Println("Starting RHMAP System Dump Tool...")
+
 	start := time.Now().UTC()
 	startTimestamp := start.Format(dumpTimestampFormat)
 
@@ -130,6 +133,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer archiveFile.Close()
+	defer log.Printf("Dumped system information to: %s\n", archiveFile.Name())
 
 	tarFile, err := NewTgz(archiveFile)
 	if err != nil {
@@ -137,6 +141,8 @@ func main() {
 		os.Exit(1)
 	}
 	defer tarFile.Close()
+
+	log.Println("Preparing tasks...")
 
 	var tasks []Task
 
@@ -156,15 +162,14 @@ func main() {
 		tasks = append(tasks, task)
 	}
 
-	fmt.Println("Starting RHMAP System Dump Tool...")
-	defer fmt.Printf("\nDumped system information to: %s\n", archiveFile.Name())
+	log.Println("Running tasks...")
 
 	// Avoid the creating goroutines and other controls if we're executing
 	// tasks sequentially.
 	if *maxParallelTasks == 1 {
 		for _, task := range tasks {
 			task()
-			fmt.Print(".")
+			fmt.Fprint(os.Stderr, ".")
 		}
 		return
 	}
@@ -179,9 +184,10 @@ func main() {
 		go func() {
 			defer wg.Done()
 			task()
-			fmt.Print(".")
+			fmt.Fprint(os.Stderr, ".")
 			<-sem
 		}()
 	}
 	wg.Wait()
+	fmt.Fprintln(os.Stderr)
 }
