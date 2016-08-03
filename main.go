@@ -24,11 +24,35 @@ const (
 	// dumpTimestampFormat is a layout for use with Time.Format. Used to
 	// create directories with a timestamp. Based on time.RFC3339.
 	dumpTimestampFormat = "2006-01-02T15-04-05Z0700"
+	// defaultMaxLogLines is the default limit of number of log lines to
+	// fetch.
+	defaultMaxLogLines = 1000
 )
 
-var maxParallelTasks = flag.Int("p", runtime.NumCPU(), "max number of tasks to run in parallel")
+var (
+	maxParallelTasks = flag.Int("p", runtime.NumCPU(), "max number of tasks to run in parallel")
+	maxLogLines      = flag.Int("max-log-lines", defaultMaxLogLines, "max number of log lines fetched with oc logs")
+)
 
-func runCmdCaptureOutput(cmd *exec.Cmd, project, resource string, outFor, errOutFor projectResourceWriterCloserFactory) error {
+func runCmdCaptureOutput(cmd *exec.Cmd, out, errOut io.Writer) error {
+	cmd.Stdout = out
+
+	// Send stderr to an in-memory buffer used to enrich error messages.
+	var buf bytes.Buffer
+	cmd.Stderr = &buf
+	if errOut != nil {
+		// If errOut is non-nil, also send stderr to it.
+		cmd.Stderr = io.MultiWriter(cmd.Stderr, errOut)
+	}
+
+	// TODO: limit the execution time with a timeout.
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("command %q: %v: %v", strings.Join(cmd.Args, " "), err, buf.String())
+	}
+	return nil
+}
+
+func runCmdCaptureOutputDeprecated(cmd *exec.Cmd, project, resource string, outFor, errOutFor projectResourceWriterCloserFactory) error {
 	var err error
 	var stdoutCloser, stderrCloser io.Closer
 
@@ -65,6 +89,12 @@ func runCmdCaptureOutput(cmd *exec.Cmd, project, resource string, outFor, errOut
 // user.
 func GetProjects() ([]string, error) {
 	return getSpaceSeparated(exec.Command("oc", "get", "projects", "-o=jsonpath={.items[*].metadata.name}"))
+}
+
+// GetResourceNames returns a list of resource names of type rtype, visible by
+// the current logged in user, scoped by project.
+func GetResourceNames(project, rtype string) ([]string, error) {
+	return getSpaceSeparated(exec.Command("oc", "-n", project, "get", rtype, "-o=jsonpath={.items[*].metadata.name}"))
 }
 
 // getSpaceSeparated calls cmd, expected to output a space-separated list of
