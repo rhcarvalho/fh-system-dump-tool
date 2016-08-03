@@ -28,13 +28,6 @@ const (
 
 var maxParallelTasks = flag.Int("p", runtime.NumCPU(), "max number of tasks to run in parallel")
 
-// An errorList accumulates multiple error messages and implements error.
-type errorList []string
-
-func (e errorList) Error() string {
-	return "multiple errors:\n" + strings.Join(e, "\n")
-}
-
 func runCmdCaptureOutput(cmd *exec.Cmd, project, resource string, outFor, errOutFor projectResourceWriterCloserFactory) error {
 	var err error
 	var stdoutCloser, stderrCloser io.Closer

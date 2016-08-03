@@ -30,7 +30,7 @@ func resourceDefinitions(cmdFactory getProjectResourceCmdFactory, project string
 				// In case of errors, report it, skip the
 				// current resource type and proceed with the
 				// next.
-				errors = append(errors, err.Error())
+				errors = append(errors, err)
 				continue
 			}
 		}

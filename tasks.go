@@ -22,7 +22,7 @@ func GetAllTasks(tarFile *Archive) ([]Task, error) {
 	// Add tasks to fetch resource definitions.
 	definitionsTasks, err := GetResourceDefinitionsTasks(projects, resources, tarFile)
 	if err != nil {
-		errors = append(errors, err.Error())
+		errors = append(errors, err)
 	}
 	tasks = append(tasks, definitionsTasks...)
 
