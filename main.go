@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,16 +27,6 @@ const (
 )
 
 var maxParallelTasks = flag.Int("p", runtime.NumCPU(), "max number of tasks to run in parallel")
-
-// A Task performs some part of the RHMAP System Dump Tool.
-type Task func() error
-
-// An errorList accumulates multiple error messages and implements error.
-type errorList []string
-
-func (e errorList) Error() string {
-	return "multiple errors:\n" + strings.Join(e, "\n")
-}
 
 func runCmdCaptureOutput(cmd *exec.Cmd, project, resource string, outFor, errOutFor projectResourceWriterCloserFactory) error {
 	var err error
@@ -114,6 +105,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	log.Println("Starting RHMAP System Dump Tool...")
+
 	start := time.Now().UTC()
 	startTimestamp := start.Format(dumpTimestampFormat)
 
@@ -130,6 +123,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer archiveFile.Close()
+	defer log.Printf("Dumped system information to: %s\n", archiveFile.Name())
 
 	tarFile, err := NewTgz(archiveFile)
 	if err != nil {
@@ -138,33 +132,25 @@ func main() {
 	}
 	defer tarFile.Close()
 
-	var tasks []Task
+	log.Println("Preparing tasks...")
 
-	var resources = []string{"deploymentconfigs", "pods", "services", "events"}
-
-	projects, err := GetProjects()
+	tasks, err := GetAllTasks(tarFile)
 	if err != nil {
 		printError(err)
-		os.Exit(1)
+		defer os.Exit(1)
+	}
+	if len(tasks) == 0 {
+		return
 	}
 
-	// Add tasks to fetch resource definitions.
-	for _, p := range projects {
-		outFor := outToTGZ("json", tarFile)
-		errOutFor := outToTGZ("stderr", tarFile)
-		task := ResourceDefinitions(p, resources, outFor, errOutFor)
-		tasks = append(tasks, task)
-	}
-
-	fmt.Println("Starting RHMAP System Dump Tool...")
-	defer fmt.Printf("\nDumped system information to: %s\n", dumpDir)
+	log.Println("Running tasks...")
 
 	// Avoid the creating goroutines and other controls if we're executing
 	// tasks sequentially.
 	if *maxParallelTasks == 1 {
 		for _, task := range tasks {
 			task()
-			fmt.Print(".")
+			fmt.Fprint(os.Stderr, ".")
 		}
 		return
 	}
@@ -179,9 +165,10 @@ func main() {
 		go func() {
 			defer wg.Done()
 			task()
-			fmt.Print(".")
+			fmt.Fprint(os.Stderr, ".")
 			<-sem
 		}()
 	}
 	wg.Wait()
+	fmt.Fprintln(os.Stderr)
 }
