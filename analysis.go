@@ -51,9 +51,10 @@ func CheckTasks(project string, checks []string, outFor, errOutFor projectResour
 	}, project, checks, outFor, errOutFor)
 }
 
-// A getProjectResourceCmdFactory generates commands to get resources of a given
+// A getProjectCheckFactory generates commands to get resources of a given
 // type in a project.
 type getProjectCheckFactory func(project, check string) CheckTask
+
 
 func checkTasks(checkFactory getProjectCheckFactory, project string, checks []string, outFor, errOutFor projectResourceWriterCloserFactory) Task {
 	return func() error {
@@ -82,7 +83,7 @@ func getResourceReader(project, resource string) (io.Reader, error) {
 	errOutFor := func(project, resource string) (io.Writer, io.Closer, error) {
 		return stdErr, ioutil.NopCloser(nil), nil
 	}
-	task := ResourceDefinitions(project, []string{"events"}, outFor, errOutFor)
+	task := ResourceDefinitions(project, []string{resource}, outFor, errOutFor)
 
 	err := task()
 	if err != nil {
@@ -103,7 +104,7 @@ func CheckImagePullBackOff(project string, outFor, errOutFor projectResourceWrit
 		return err
 	}
 	defer stdOutCloser.Close()
-	_, stdErrCloser, err := errOutFor(project, "checkImagePullBackOff")
+	stdErr, stdErrCloser, err := errOutFor(project, "checkImagePullBackOff")
 	if err != nil {
 		return err
 	}
@@ -111,6 +112,7 @@ func CheckImagePullBackOff(project string, outFor, errOutFor projectResourceWrit
 
 	eventsJson, err := getResourceReader(project, "events")
 	if err != nil {
+		stdErr.Write([]byte(err.Error()))
 		return err
 	}
 	result := Result{}
@@ -119,6 +121,7 @@ func CheckImagePullBackOff(project string, outFor, errOutFor projectResourceWrit
 	decoder := json.NewDecoder(eventsJson)
 	err = decoder.Decode(&events)
 	if err != nil {
+		stdErr.Write([]byte(err.Error()))
 		return err
 	}
 

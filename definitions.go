@@ -8,7 +8,7 @@ import "os/exec"
 // output and any eventual error message.
 func ResourceDefinitions(project string, types []string, outFor, errOutFor projectResourceWriterCloserFactory) Task {
 	return resourceDefinitions(func(project, resource string) *exec.Cmd {
-		return exec.Command("oc", "-n", project, "get", resource, "-o=json")
+		return exec.Command("pboc", "-n", project, "get", resource, "-o=json")
 	}, project, types, outFor, errOutFor)
 }
 
