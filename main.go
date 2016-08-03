@@ -161,7 +161,13 @@ func main() {
 	}
 	defer tarFile.Close()
 
+<<<<<<< 823846f39ac5371e1a89ac3c9402bae1c1149c4f
 	log.Println("Preparing tasks...")
+=======
+	var tasks []Task
+
+	var resources = []string{"deploymentconfigs", "pods", "services", "events"}
+>>>>>>> combined analysis result file
 
 	tasks, err := GetAllTasks(tarFile)
 	if err != nil {
@@ -176,7 +182,7 @@ func main() {
 	for _, p := range projects {
 		outFor := outToTGZ("json", tarFile)
 		errOutFor := outToTGZ("stderr", tarFile)
-		task := CheckTasks(p, checks, outFor, errOutFor)
+		task := CheckTasks(p, outFor, errOutFor)
 		tasks = append(tasks, task)
 
 	}
