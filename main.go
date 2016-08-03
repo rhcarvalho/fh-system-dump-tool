@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -171,6 +170,15 @@ func main() {
 	}
 	if len(tasks) == 0 {
 		return
+	}
+
+	// Add check tasks
+	for _, p := range projects {
+		outFor := outToTGZ("json", tarFile)
+		errOutFor := outToTGZ("stderr", tarFile)
+		task := CheckTasks(p, checks, outFor, errOutFor)
+		tasks = append(tasks, task)
+
 	}
 
 	log.Println("Running tasks...")
