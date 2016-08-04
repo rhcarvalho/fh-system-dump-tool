@@ -14,40 +14,27 @@ func mockOutFor(project, resource string) (io.Writer, io.Closer, error) {
 	return b, ioutil.NopCloser(nil), nil
 }
 
-func mockCheckFactory(project, check string) CheckTask {
-	switch check {
-	case "mockTestOne":
-		return mockTestOne
-	case "mockTestTwo":
-		return mockTestTwo
-	}
-	return nil
+func mockCheckFactoryOnePassOneFail() []CheckTask {
+	return []CheckTask{mockTestOne, mockTestTwo}
+}
+func mockCheckFactoryOnePass() []CheckTask {
+	return []CheckTask{mockTestOne}
 }
 
-func mockTestOne(project string, outFor, errOutFor projectResourceWriterCloserFactory) error {
-	writer, closer, err := outFor(project, "mockResource")
-	if err != nil {
-		return err
-	}
-	writer.Write([]byte("Test One"))
-	closer.Close()
-	return nil
+func mockTestOne(project string, stdErr io.Writer) (Result, error) {
+	result := Result{StatusMessage: "Called mockTestOne"}
+	return result, nil
 
 }
 
-func mockTestTwo(project string, outFor, errOutFor projectResourceWriterCloserFactory) error {
-	writer, closer, err := outFor(project, "mockResource")
-	if err != nil {
-		return err
-	}
-	writer.Write([]byte("Test Two"))
-	closer.Close()
-	return errors.New("FAIL")
+func mockTestTwo(project string, stdErr io.Writer) (Result, error) {
+	result := Result{StatusMessage: "Called mockTestTwo"}
+	return result, errors.New("FAIL")
 }
 
-func TestcheckTasks(t *testing.T) {
+func TestCheckTasks(t *testing.T) {
 	b = bytes.NewBuffer([]byte{})
-	task := checkTasks(mockCheckFactory, "MockProject", []string{"mockTestOne", "mockTestTwo"}, mockOutFor, mockOutFor)
+	task := checkTasks(mockCheckFactoryOnePassOneFail, "MockProject", mockOutFor, mockOutFor)
 	err := task()
 
 	if err == nil {
@@ -60,7 +47,7 @@ func TestcheckTasks(t *testing.T) {
 	}
 
 	b = bytes.NewBuffer([]byte{})
-	task = checkTasks(mockCheckFactory, "MockProject", []string{"mockTestOne"}, mockOutFor, mockOutFor)
+	task = checkTasks(mockCheckFactoryOnePass, "MockProject", mockOutFor, mockOutFor)
 	err = task()
 
 	if err != nil {
