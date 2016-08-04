@@ -29,3 +29,27 @@ oc login <public-master-url>
 ```
 ./fh-system-dump-tool
 ```
+
+## Adding new analysis checks
+Create a function - currently all in analysis.go - which matches the CheckTask interface:
+```
+type CheckTask func(string, io.Writer) (Result, error)
+```
+
+The writer is where the stderr output from your checks should be sent.
+
+If a resource from oc is required, you can use the helper function: `getResourceStruct` pass to this the current 
+project, the resource type and a pointer to the struct the json should decode into.
+
+The Result struct has the following properties:
+- CheckName
+- Status
+- StatusMessage
+- Info (Array)
+  - Name
+  - Namespace
+  - Kind
+  - Count
+  - Message
+
+Update the function `CheckTasks` to also return your new check function.
