@@ -70,6 +70,9 @@ type CheckResults struct {
 	Results []Result
 }
 
+// CheckTasks will execute all the CheckTasks returned from the supplied checkFactory against the specified project
+// The results of the checks are combined into a single JSON object and written to the writer return from outFor, any
+// errors that occur during the test are written to the writer returned from errOutFor.
 func checkTasks(checkFactory getProjectCheckFactory, project string, outFor, errOutFor projectResourceWriterCloserFactory) Task {
 	return func() error {
 		stdOut, stdOutCloser, err := outFor(project, "analysis")
@@ -111,6 +114,8 @@ func checkTasks(checkFactory getProjectCheckFactory, project string, outFor, err
 	}
 }
 
+// getResourceStruct will retrieve the requested resource in the supplied project from the platform and parse the JSON
+// into the supplied interface.
 func getResourceStruct(project, resource string, dest interface{}) error {
 	stdOut := bytes.NewBuffer([]byte{})
 	stdErr := bytes.NewBuffer([]byte{})
@@ -142,6 +147,10 @@ func getResourceStruct(project, resource string, dest interface{}) error {
 	return nil
 }
 
+
+// CheckImagePullBackOff will check all events in the supplied project and if any are exhibiting signs that they have
+// experience an ImagePullBackOff recently this will be reflected in the returned Result data. Any errors are written
+// to the supplied stdErr writer
 func CheckImagePullBackOff(project string, stdErr io.Writer) (Result, error) {
 	result := Result{Status: 0, StatusMessage: "this issue was not detected", CheckName: "check deploys for ImagePullBackOff error"}
 	events := Events{}
@@ -163,6 +172,8 @@ func CheckImagePullBackOff(project string, stdErr io.Writer) (Result, error) {
 	return result, nil
 }
 
+// CheckDeployConfigsReplicasNotZero will check all deployconfigs in the supplied project and if any have replicas set
+// to zero this will be reflected in the returned Result data. Any errors are written to the supplied stdErr writer
 func CheckDeployConfigsReplicasNotZero(project string, stdErr io.Writer) (Result, error) {
 	result := Result{Status: 0, StatusMessage: "this issue was not detected", CheckName: "check deployconfig replicas not 0"}
 	deploymentConfigs := DeploymentConfigs{}
