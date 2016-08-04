@@ -111,7 +111,7 @@ func checkTasks(checkFactory getProjectCheckFactory, project string, outFor, err
 	}
 }
 
-func getResourceReader(project, resource string) (io.Reader, error) {
+func getResourceStruct(project, resource string, dest interface{}) error {
 	stdOut := bytes.NewBuffer([]byte{})
 	stdErr := bytes.NewBuffer([]byte{})
 	outFor := func(project, resource string) (io.Writer, io.Closer, error) {
@@ -124,28 +124,28 @@ func getResourceReader(project, resource string) (io.Reader, error) {
 
 	err := task()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	stdErrString := string(stdErr.Bytes())
 	if stdErrString != "" {
-		return nil, errors.New(stdErrString)
+		return errors.New(stdErrString)
 	}
 
-	return stdOut, nil
+	decoder := json.NewDecoder(stdOut)
+	err = decoder.Decode(&dest)
+	if err != nil {
+		stdErr.Write([]byte(err.Error()))
+		return err
+	}
+
+	return nil
 }
 
 func CheckImagePullBackOff(project string, stdErr io.Writer) (Result, error) {
 	result := Result{Status: 0, StatusMessage: "this issue was not detected", CheckName: "check deploys for ImagePullBackOff error"}
 	events := Events{}
-	eventsJson, err := getResourceReader(project, "events")
-	if err != nil {
-		stdErr.Write([]byte(err.Error()))
-		return result, err
-	}
-
-	decoder := json.NewDecoder(eventsJson)
-	err = decoder.Decode(&events)
+	err := getResourceStruct(project, "events", &events)
 	if err != nil {
 		stdErr.Write([]byte(err.Error()))
 		return result, err
@@ -166,14 +166,7 @@ func CheckImagePullBackOff(project string, stdErr io.Writer) (Result, error) {
 func CheckDeployConfigsReplicasNotZero(project string, stdErr io.Writer) (Result, error) {
 	result := Result{Status: 0, StatusMessage: "this issue was not detected", CheckName: "check deployconfig replicas not 0"}
 	deploymentConfigs := DeploymentConfigs{}
-	dcJson, err := getResourceReader(project, "dc")
-	if err != nil {
-		stdErr.Write([]byte(err.Error()))
-		return result, err
-	}
-
-	decoder := json.NewDecoder(dcJson)
-	err = decoder.Decode(&deploymentConfigs)
+	err := getResourceStruct(project, "dc", &deploymentConfigs)
 	if err != nil {
 		stdErr.Write([]byte(err.Error()))
 		return result, err
