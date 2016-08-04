@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"strings"
@@ -92,7 +91,7 @@ func checkTasks(checkFactory getProjectCheckFactory, project string, outFor, err
 		for _, check := range checks {
 			res, err := check(project, stdErr)
 			if err != nil {
-				errors = append(errors, err.Error())
+				errors = append(errors, err)
 			}
 			results.Results = append(results.Results, res)
 
@@ -100,7 +99,7 @@ func checkTasks(checkFactory getProjectCheckFactory, project string, outFor, err
 
 		output, err := json.MarshalIndent(results, "", "    ")
 		if err != nil {
-			errors = append(errors, err.Error())
+			errors = append(errors, err)
 		}
 
 		stdOut.Write(output)
@@ -144,8 +143,6 @@ func CheckImagePullBackOff(project string, stdErr io.Writer) (Result, error) {
 		stdErr.Write([]byte(err.Error()))
 		return result, err
 	}
-	result := Result{Status: 0, StatusMessage: "No issues detected", CheckName: "Check ImagePullBackOff"}
-	events := Events{}
 
 	decoder := json.NewDecoder(eventsJson)
 	err = decoder.Decode(&events)
@@ -192,9 +189,4 @@ func CheckDeployConfigsReplicasNotZero(project string, stdErr io.Writer) (Result
 	}
 
 	return result, nil
-	output, err := json.MarshalIndent(result, "", "    ")
-
-	stdOut.Write(output)
-
-	return nil
 }
