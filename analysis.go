@@ -14,7 +14,7 @@ type Info struct {
 	Namespace string
 	Kind      string
 	Count     int
-	Message     string
+	Message   string
 }
 
 type Result struct {

@@ -36,8 +36,6 @@ func GetAllTasks(tarFile *Archive) ([]Task, error) {
 	}
 	tasks = append(tasks, logsTasks...)
 
-
-
 	// Add check tasks
 	for _, p := range projects {
 		outFor := outToTGZ("definitions", "json", tarFile)
