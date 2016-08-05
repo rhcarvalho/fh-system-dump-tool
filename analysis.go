@@ -147,7 +147,6 @@ func getResourceStruct(project, resource string, dest interface{}) error {
 	return nil
 }
 
-
 // CheckImagePullBackOff will check all events in the supplied project and if any are exhibiting signs that they have
 // experience an ImagePullBackOff recently this will be reflected in the returned Result data. Any errors are written
 // to the supplied stdErr writer

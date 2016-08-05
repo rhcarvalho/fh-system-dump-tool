@@ -1,5 +1,7 @@
 package main
 
+import "errors"
+
 // A Task performs some part of the RHMAP System Dump Tool.
 type Task func() error
 
@@ -8,8 +10,8 @@ type Task func() error
 // FIXME: GetAllTasks should not know about tarFile.
 func GetAllTasks(tarFile *Archive) ([]Task, error) {
 	var (
-		tasks  []Task
-		errors errorList
+		tasks     []Task
+		retErrors errorList
 	)
 
 	var (
@@ -22,17 +24,21 @@ func GetAllTasks(tarFile *Archive) ([]Task, error) {
 		return nil, err
 	}
 
+	if len(projects) == 0 {
+		return []Task{}, errors.New("no projects visible to the currently logged in user")
+	}
+
 	// Add tasks to fetch resource definitions.
 	definitionsTasks, err := GetResourceDefinitionsTasks(projects, resources, tarFile)
 	if err != nil {
-		errors = append(errors, err)
+		retErrors = append(retErrors, err)
 	}
 	tasks = append(tasks, definitionsTasks...)
 
 	// Add tasks to fetch logs.
 	logsTasks, err := GetFetchLogsTasks(projects, resourcesWithLogs, tarFile)
 	if err != nil {
-		errors = append(errors, err)
+		retErrors = append(retErrors, err)
 	}
 	tasks = append(tasks, logsTasks...)
 
@@ -44,8 +50,8 @@ func GetAllTasks(tarFile *Archive) ([]Task, error) {
 		tasks = append(tasks, task)
 	}
 
-	if len(errors) > 0 {
-		return tasks, errors
+	if len(retErrors) > 0 {
+		return tasks, retErrors
 	}
 	return tasks, nil
 }
