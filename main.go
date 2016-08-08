@@ -27,11 +27,15 @@ const (
 	// defaultMaxLogLines is the default limit of number of log lines to
 	// fetch.
 	defaultMaxLogLines = 1000
+
+	// The version of the fh-system-dump-tool
+	version = "0.1.0"
 )
 
 var (
 	maxParallelTasks = flag.Int("p", runtime.NumCPU(), "max number of tasks to run in parallel")
 	maxLogLines      = flag.Int("max-log-lines", defaultMaxLogLines, "max number of log lines fetched with oc logs")
+	versionCheck     = flag.Bool("version", false, "Output the current version of the system-dump-tool")
 )
 
 func runCmdCaptureOutput(cmd *exec.Cmd, out, errOut io.Writer) error {
@@ -130,6 +134,12 @@ func printError(err error) {
 
 func main() {
 	flag.Parse()
+
+	if *versionCheck {
+		fmt.Println("RHMAP fh-system-dump-tool v" + version)
+		os.Exit(0)
+	}
+
 	if !(*maxParallelTasks > 0) {
 		printError(fmt.Errorf("argument to -p flag must be greater than 0"))
 		os.Exit(1)
