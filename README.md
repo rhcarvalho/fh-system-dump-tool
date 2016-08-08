@@ -53,3 +53,13 @@ The Result struct has the following properties:
   - Message
 
 Update the function `CheckTasks` to also return your new check function.
+
+## Releasing
+
+* Clone the repo locally
+* Bump the version in `main.go`
+* Do a `go build`
+* Create a new __Release__ from the [releases](https://github.com/feedhenry/fh-system-dump-tool/releases) page
+* Add some info about the release, including the version as a tag e.g. `v0.1.0`
+* Upload the built binary
+* Publish it
