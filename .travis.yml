@@ -1,0 +1,9 @@
+
+language: go
+go: 
+ - tip
+
+script:
+  - gofmt -d -s $(find . -name '*.go')
+  - test -z "$(gofmt -d -s $(find . -name '*.go'))"
+  - go test
