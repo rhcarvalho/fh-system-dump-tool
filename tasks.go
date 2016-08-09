@@ -25,7 +25,7 @@ func GetAllTasks(tarFile *Archive) ([]Task, error) {
 	}
 
 	if len(projects) == 0 {
-		return []Task{}, errors.New("no projects visible to the currently logged in user")
+		return nil, errors.New("no projects visible to the currently logged in user")
 	}
 
 	// Add tasks to fetch resource definitions.
