@@ -7,8 +7,8 @@ type Task func() error
 
 // GetAllTasks returns a list of all tasks performed by the dump tool. It may
 // return tasks even in the presence of an error.
-// FIXME: GetAllTasks should not know about tarFile.
-func GetAllTasks(tarFile *Archive) ([]Task, error) {
+// FIXME: GetAllTasks should not need to know about basepath.
+func GetAllTasks(basepath string) ([]Task, error) {
 	var (
 		tasks     []Task
 		retErrors errorList
@@ -29,14 +29,14 @@ func GetAllTasks(tarFile *Archive) ([]Task, error) {
 	}
 
 	// Add tasks to fetch resource definitions.
-	definitionsTasks, err := GetResourceDefinitionsTasks(projects, resources, tarFile)
+	definitionsTasks, err := GetResourceDefinitionsTasks(projects, resources, basepath)
 	if err != nil {
 		retErrors = append(retErrors, err)
 	}
 	tasks = append(tasks, definitionsTasks...)
 
 	// Add tasks to fetch logs.
-	logsTasks, err := GetFetchLogsTasks(projects, resourcesWithLogs, tarFile)
+	logsTasks, err := GetFetchLogsTasks(projects, resourcesWithLogs, basepath)
 	if err != nil {
 		retErrors = append(retErrors, err)
 	}
@@ -44,8 +44,8 @@ func GetAllTasks(tarFile *Archive) ([]Task, error) {
 
 	// Add check tasks
 	for _, p := range projects {
-		outFor := outToTGZ("definitions", "json", tarFile)
-		errOutFor := outToTGZ("definitions", "stderr", tarFile)
+		outFor := outToFile(basepath, "json", "analysis")
+		errOutFor := outToFile(basepath, "stderr", "analysis")
 		task := CheckTasks(p, outFor, errOutFor)
 		tasks = append(tasks, task)
 	}
@@ -58,12 +58,12 @@ func GetAllTasks(tarFile *Archive) ([]Task, error) {
 
 // GetResourceDefinitionsTasks returns a list of tasks to fetch the definitions
 // of all resources in all projects.
-// FIXME: GetResourceDefinitionsTasks should not know about tarFile.
-func GetResourceDefinitionsTasks(projects, resources []string, tarFile *Archive) ([]Task, error) {
+// FIXME: GetResourceDefinitionsTasks should not know about basepath.
+func GetResourceDefinitionsTasks(projects, resources []string, basepath string) ([]Task, error) {
 	var tasks []Task
 	for _, p := range projects {
-		outFor := outToTGZ("definitions", "json", tarFile)
-		errOutFor := outToTGZ("definitions", "stderr", tarFile)
+		outFor := outToFile(basepath, "json", "definitions")
+		errOutFor := outToFile(basepath, "stderr", "definitions")
 		task := ResourceDefinitions(p, resources, outFor, errOutFor)
 		tasks = append(tasks, task)
 	}
@@ -72,8 +72,8 @@ func GetResourceDefinitionsTasks(projects, resources []string, tarFile *Archive)
 
 // GetFetchLogsTasks returns a list of tasks to fetch resource logs. It may
 // return tasks even in the presence of an error.
-// FIXME: GetFetchLogsTasks should not know about tarFile.
-func GetFetchLogsTasks(projects, resources []string, tarFile *Archive) ([]Task, error) {
+// FIXME: GetFetchLogsTasks should not need to know about the output directory.
+func GetFetchLogsTasks(projects, resources []string, basepath string) ([]Task, error) {
 	var (
 		tasks  []Task
 		errors errorList
@@ -94,8 +94,8 @@ func GetFetchLogsTasks(projects, resources []string, tarFile *Archive) ([]Task, 
 		// Add tasks to fetch current logs.
 		{
 			// FIXME: Do not ignore errors.
-			out, outCloser, _ := outToTGZ("logs", "logs", tarFile)(r.Project, name)
-			errOut, errOutCloser, _ := outToTGZ("logs", "stderr", tarFile)(r.Project, name)
+			out, outCloser, _ := outToFile(basepath, "logs", "logs")(r.Project, name)
+			errOut, errOutCloser, _ := outToFile(basepath, "stderr", "logs")(r.Project, name)
 			task := func() error {
 				defer outCloser.Close()
 				defer errOutCloser.Close()
@@ -106,8 +106,8 @@ func GetFetchLogsTasks(projects, resources []string, tarFile *Archive) ([]Task, 
 		// Add tasks to fetch previous logs.
 		{
 			// FIXME: Do not ignore errors.
-			out, outCloser, _ := outToTGZ("logs-previous", "logs", tarFile)(r.Project, name)
-			errOut, errOutCloser, _ := outToTGZ("logs-previous", "stderr", tarFile)(r.Project, name)
+			out, outCloser, _ := outToFile(basepath, "logs", "logs-previous")(r.Project, name)
+			errOut, errOutCloser, _ := outToFile(basepath, "stderr", "logs-previous")(r.Project, name)
 			task := func() error {
 				defer outCloser.Close()
 				defer errOutCloser.Close()
