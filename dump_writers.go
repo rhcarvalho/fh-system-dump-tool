@@ -11,29 +11,19 @@ import (
 type projectResourceWriterCloserFactory func(project, resource string) (io.Writer, io.Closer, error)
 
 // outToFile returns a function that creates an io.Writer that writes to a file
-// in basepath with extension, given a project and resource.
-func outToFile(basepath, extension string) projectResourceWriterCloserFactory {
+// in basepath with extension, given a project and resource. The scope can be passed as a value to group the
+// files under, or assigned an empty value to have the files grouped directly under the project.
+func outToFile(basepath, extension, scope string) projectResourceWriterCloserFactory {
 	return func(project, resource string) (io.Writer, io.Closer, error) {
-		projectpath := filepath.Join(basepath, "projects", project)
-		err := os.MkdirAll(projectpath, 0770)
+		scopePath := filepath.Join(basepath, "projects", project, scope)
+		err := os.MkdirAll(scopePath, 0770)
 		if err != nil {
 			return nil, nil, err
 		}
-		f, err := os.Create(filepath.Join(projectpath, resource+"."+extension))
+		f, err := os.Create(filepath.Join(scopePath, resource+"."+extension))
 		if err != nil {
 			return nil, nil, err
 		}
 		return f, f, nil
-	}
-}
-
-// outToTGZ returns an anonymous factory function that will create an io.Writer
-// which writes into the tar archive provided. The path inside the tar.gz file
-// is calculated from basepath, project and resource provided.
-func outToTGZ(basepath, extension string, tarFile *Archive) projectResourceWriterCloserFactory {
-	return func(project, resource string) (io.Writer, io.Closer, error) {
-		projectPath := filepath.Join(basepath, "projects", project)
-		writer := tarFile.GetWriterToFile(filepath.Join(projectPath, resource+"."+extension))
-		return writer, writer, nil
 	}
 }

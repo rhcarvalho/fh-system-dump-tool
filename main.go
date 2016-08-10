@@ -150,38 +150,36 @@ func main() {
 	start := time.Now().UTC()
 	startTimestamp := start.Format(dumpTimestampFormat)
 
-	// Create the dumpDir if necessary.
-	err := os.MkdirAll(dumpDir, 0770)
-	if err != nil {
-		printError(err)
-		os.Exit(1)
-	}
-
-	archiveFile, err := os.Create(filepath.Join(dumpDir, startTimestamp+".tar.gz"))
-	if err != nil {
-		printError(err)
-		os.Exit(1)
-	}
-	defer archiveFile.Close()
-	defer log.Printf("Dumped system information to: %s\n", archiveFile.Name())
-
-	tarFile, err := NewTgz(archiveFile)
-	if err != nil {
-		printError(err)
-		os.Exit(1)
-	}
-	defer tarFile.Close()
+	basePath := filepath.Join(dumpDir, startTimestamp)
 
 	log.Println("Preparing tasks...")
 
-	tasks, err := GetAllTasks(tarFile)
+	tasks, err := GetAllTasks(basePath)
 	if err != nil {
 		printError(err)
 		defer os.Exit(1)
 	}
 	if len(tasks) == 0 {
+		fmt.Println("No tasks found to execute.")
 		return
 	}
+
+	// defer creating a tar.gz file from the dumped output files
+	defer func() {
+		var stdout, stderr bytes.Buffer
+
+		cmd := exec.Command("tar", "-czf", basePath+".tar.gz", basePath)
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		if err := cmd.Run(); err != nil {
+			log.Printf("Dumped system information to: %s", basePath)
+			return
+		}
+		cmd = exec.Command("rm", "-rf", basePath)
+		cmd.Run()
+
+		log.Printf("Dumped system information to: %s", basePath+".tar.gz")
+	}()
 
 	log.Println("Running tasks...")
 
@@ -194,6 +192,7 @@ func main() {
 		}
 		return
 	}
+
 	// Run at most N tasks in parallel, and wait for all of them to
 	// complete.
 	var wg sync.WaitGroup
@@ -210,5 +209,6 @@ func main() {
 		}()
 	}
 	wg.Wait()
+
 	fmt.Fprintln(os.Stderr)
 }
