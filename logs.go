@@ -4,6 +4,7 @@ import (
 	"io"
 	"os/exec"
 	"strconv"
+	"strings"
 )
 
 // LoggableResource describes an OpenShift resource that produces logs.
@@ -89,6 +90,25 @@ func getLoggableResources(getPodContainers func(string, string) ([]string, error
 			})
 	}
 	return loggableResources, nil
+}
+
+// getResourceNamesBySubstr returns a list of names for the provided resource type that contain
+// the provided string, in the provided project.
+func getResourceNamesBySubstr(project, resource, substr string) ([]string, error) {
+	resources, err := GetResourceNames(project, resource)
+	if err != nil {
+		return nil, err
+	}
+
+	filtered := resources[:0]
+
+	for _, resource := range resources {
+		if strings.Contains(resource, substr) {
+			filtered = append(filtered, resource)
+		}
+	}
+
+	return filtered, nil
 }
 
 // GetPodContainers returns a list of container names for the named pod in the

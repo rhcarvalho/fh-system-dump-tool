@@ -42,6 +42,12 @@ func GetAllTasks(basepath string) ([]Task, error) {
 	}
 	tasks = append(tasks, logsTasks...)
 
+	nagiosDataTasks, err := GetNagiosTasks(projects, basepath)
+	if err != nil {
+		retErrors = append(retErrors, err)
+	}
+	tasks = append(tasks, nagiosDataTasks...)
+
 	// Add check tasks
 	for _, p := range projects {
 		outFor := outToFile(basepath, "json", "analysis")
@@ -52,6 +58,34 @@ func GetAllTasks(basepath string) ([]Task, error) {
 
 	if len(retErrors) > 0 {
 		return tasks, retErrors
+	}
+	return tasks, nil
+}
+
+// GetNagiosTasks will return an array of Tasks each of which will dump the nagios data for one project.
+func GetNagiosTasks(projects []string, basepath string) ([]Task, error) {
+	var tasks []Task
+	var errors errorList
+	for _, p := range projects {
+		pods, err := getResourceNamesBySubstr(p, "pod", "nagios")
+		if err != nil {
+			errors = append(errors, err)
+			continue
+		}
+		for _, pod := range pods {
+			outFor := outToFile(basepath, "dat", "nagios")
+			errOutFor := outToFile(basepath, "stderr", "nagios")
+			task := GetNagiosStatusData(p, pod, outFor, errOutFor)
+			tasks = append(tasks, task)
+
+			outFor = outToFile(basepath, "tar", "nagios")
+			errOutFor = outToFile(basepath, "stderr", "nagios")
+			task = GetNagiosHistoricalData(p, pod, outFor, errOutFor)
+			tasks = append(tasks, task)
+		}
+	}
+	if len(errors) > 0 {
+		return tasks, errors
 	}
 	return tasks, nil
 }
