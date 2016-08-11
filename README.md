@@ -1,66 +1,54 @@
 # fh-system-dump-tool
 
-This repository contains the system dump tool for the RHMAP On-Prem product.
+This repository contains the system dump tool for the Red Hat Mobile Application
+Platform, RHMAP.
 
-## Building
+It is used to aggregate debugging information for RHMAP installations running on
+top of OpenShift.
 
-Building requires Go 1.6 or later. The code can be built using the standard Go
-tools, `go build`, `go install` and `go get`. However, use `make` for release
-binaries that include version information:
 
-```
-make
-```
+## Runtime requirements
 
-## Runtime Prerequisites
+The dump tool depends on some commands being available:
 
-- Installation of [OpenShift CLI](https://docs.openshift.com/enterprise/3.2/cli_reference) for `oc` binary.
+- OpenShift command line interface, `oc`
+  ([installation instructions](https://docs.openshift.com/enterprise/3.2/cli_reference/get_started_cli.html#installing-the-cli))
+
+  Used to fetch data from an existing OpenShift cluster.
+
+- GNU tar (optional)
+
+  Used to generate a `.tar.gz` archive with the dump data.
+
 
 ## Running
 
-The follow section outlines the steps required to run the system dump tool.
+1. Login to an OpenShift cluster where RHMAP is installed
 
-### 1. Login to OpenShift Cluster as an Administrative User
+    Login as an user with sufficient permissions to list resources in the
+    RHMAP-related projects. Ideally, the user has the `cluster-reader` role,
+    what gives it read access to cluster level resources such as persistent
+    volumes and nodes.
 
-```
-oc login <public-master-url>
-```
+    ```
+    oc login <public-master-url>
+    ```
 
-### 2. Run the System Dump Tool
+2. Run the system dump tool:
 
-```
-./fh-system-dump-tool
-```
+    ```
+    fh-system-dump-tool
+    ```
 
-## Adding new analysis checks
-Create a function - currently all in analysis.go - which matches the CheckTask interface:
-```
-type CheckTask func(string, io.Writer) (Result, error)
-```
+3. The above command will print where the archive with debugging information was
+stored, and any potential problem detected.
 
-The writer is where the stderr output from your checks should be sent.
 
-If a resource from oc is required, you can use the helper function: `getResourceStruct` pass to this the current 
-project, the resource type and a pointer to the struct the json should decode into.
+## Developing and Contributing
 
-The Result struct has the following properties:
-- CheckName
-- Status
-- StatusMessage
-- Info (Array)
-  - Name
-  - Namespace
-  - Kind
-  - Count
-  - Message
+See [the contribution guide](CONTRIBUTING.md).
 
-Update the function `CheckTasks` to also return your new check function.
 
-## Releasing
+## License
 
-* Tag a new version, e.g., `v0.1.0`
-* Create a new __Release__ from the [releases](https://github.com/feedhenry/fh-system-dump-tool/releases) page
-* Add some info about the release
-* Build a release binary using `make`
-* Upload the built binary
-* Publish it
+See [LICENSE](LICENSE) file.
