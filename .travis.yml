@@ -1,6 +1,6 @@
 language: go
 go:
- - tip
+ - 1.6.3
 script:
   - gofmt -d -s $(find . -name '*.go')
   - test -z "$(gofmt -d -s $(find . -name '*.go'))"
