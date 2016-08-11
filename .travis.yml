@@ -1,9 +1,6 @@
-
 language: go
-go: 
- - tip
-
+go:
+ - 1.6.3
 script:
-  - gofmt -d -s $(find . -name '*.go')
-  - test -z "$(gofmt -d -s $(find . -name '*.go'))"
-  - go test
+  - test -z "$(gofmt -s -l $(find . -name '*.go'))" || { echo "Code needs to be gofmt'ed"; false; }
+  - go test ./...
