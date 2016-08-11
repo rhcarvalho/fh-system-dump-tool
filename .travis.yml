@@ -3,4 +3,4 @@ go:
  - 1.6.3
 script:
   - test -z "$(gofmt -s -l $(find . -name '*.go'))" || { echo "Code needs to be gofmt'ed"; false; }
-  - go test
+  - go test ./...
