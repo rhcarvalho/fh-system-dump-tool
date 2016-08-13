@@ -160,7 +160,7 @@ func main() {
 		defer os.Exit(1)
 	}
 	if len(tasks) == 0 {
-		fmt.Println("No tasks found to execute.")
+		log.Print("No tasks found to execute.")
 		return
 	}
 
