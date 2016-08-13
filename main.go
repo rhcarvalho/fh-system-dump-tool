@@ -145,14 +145,25 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.Println("Starting RHMAP System Dump Tool...")
-
 	start := time.Now().UTC()
 	startTimestamp := start.Format(dumpTimestampFormat)
 
 	basePath := filepath.Join(dumpDir, startTimestamp)
 
-	log.Println("Preparing tasks...")
+	if err := os.MkdirAll(basePath, 0770); err != nil {
+		log.Fatalln("Error:", err)
+	}
+
+	logfile, err := os.Create(filepath.Join(basePath, "dump.log"))
+	if err != nil {
+		log.Fatalln("Error:", err)
+	}
+	defer logfile.Close()
+	log.SetOutput(io.MultiWriter(os.Stderr, logfile))
+	fileOnlyLogger := log.New(logfile, "", log.LstdFlags)
+
+	log.Print("Starting RHMAP System Dump Tool...")
+	log.Print("Preparing tasks...")
 
 	tasks, err := GetAllTasks(basePath)
 	if err != nil {
@@ -166,6 +177,10 @@ func main() {
 
 	// defer creating a tar.gz file from the dumped output files
 	defer func() {
+		// Write this only to logfile, before we archive it and remove
+		// basePath. After that, logs will go only to stderr.
+		fileOnlyLogger.Printf("Dumped system information to: %s", basePath)
+
 		var stdout, stderr bytes.Buffer
 
 		cmd := exec.Command("tar", "-czf", basePath+".tar.gz", basePath)
