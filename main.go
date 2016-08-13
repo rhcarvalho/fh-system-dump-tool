@@ -218,6 +218,5 @@ func main() {
 		}()
 	}
 	wg.Wait()
-
 	fmt.Fprintln(os.Stderr)
 }
