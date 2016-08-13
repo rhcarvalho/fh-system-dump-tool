@@ -187,16 +187,6 @@ func main() {
 
 	log.Println("Running tasks...")
 
-	// Avoid the creating goroutines and other controls if we're executing
-	// tasks sequentially.
-	if *maxParallelTasks == 1 {
-		for _, task := range tasks {
-			task()
-			fmt.Fprint(os.Stderr, ".")
-		}
-		return
-	}
-
 	// Run at most N tasks in parallel, and wait for all of them to
 	// complete.
 	var wg sync.WaitGroup
