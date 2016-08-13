@@ -15,8 +15,10 @@ func GetAllTasks(basepath string) ([]Task, error) {
 	)
 
 	var (
-		resources         = []string{"deploymentconfigs", "pods", "services", "events"}
-		resourcesWithLogs = []string{"deploymentconfigs", "pods"}
+		resources = []string{"deploymentconfigs", "pods", "services", "events"}
+		// We should only care about logs for pods, because they cover
+		// all other possible types.
+		resourcesWithLogs = []string{"pods"}
 	)
 
 	projects, err := GetProjects()

@@ -6,15 +6,19 @@ import (
 	"strconv"
 )
 
-// LoggableResource describes an OpenShift resource that produces logs.
+// LoggableResource describes an OpenShift resource that produces logs. Even
+// though oc logs can fetch logs for build, buildconfig, deploymentconfig and
+// pod resources, eventually the first three are just shortcuts to a certain
+// pod. For dump purposes, it is enough to fetch logs of all pods.
 type LoggableResource struct {
 	Project string
 	// Type should be one of: build, buildconfig, deploymentconfig or pod,
 	// or an alias to one of those.
 	Type string
+	// Name is generally a pod name, but could be a reference to one of the
+	// other types understood by oc logs.
 	Name string
-	// Container is required for pods with more than one container, and
-	// ignored for other types.
+	// Container is required for pods with more than one container.
 	Container string
 }
 
