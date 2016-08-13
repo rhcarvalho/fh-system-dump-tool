@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -33,9 +32,9 @@ const (
 )
 
 var (
-	maxParallelTasks = flag.Int("p", runtime.NumCPU(), "max number of tasks to run in parallel")
-	maxLogLines      = flag.Int("max-log-lines", defaultMaxLogLines, "max number of log lines fetched with oc logs")
-	printVersion     = flag.Bool("version", false, "print version and exit")
+	concurrentTasks = flag.Int("p", runtime.NumCPU(), "number of tasks to run concurrently")
+	maxLogLines     = flag.Int("max-log-lines", defaultMaxLogLines, "max number of log lines fetched with oc logs")
+	printVersion    = flag.Bool("version", false, "print version and exit")
 )
 
 func runCmdCaptureOutput(cmd *exec.Cmd, out, errOut io.Writer) error {
@@ -140,7 +139,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	if !(*maxParallelTasks > 0) {
+	if !(*concurrentTasks > 0) {
 		printError(fmt.Errorf("argument to -p flag must be greater than 0"))
 		os.Exit(1)
 	}
@@ -161,19 +160,6 @@ func main() {
 	defer logfile.Close()
 	log.SetOutput(io.MultiWriter(os.Stderr, logfile))
 	fileOnlyLogger := log.New(logfile, "", log.LstdFlags)
-
-	log.Print("Starting RHMAP System Dump Tool...")
-	log.Print("Preparing tasks...")
-
-	tasks, err := GetAllTasks(basePath)
-	if err != nil {
-		printError(err)
-		defer os.Exit(1)
-	}
-	if len(tasks) == 0 {
-		log.Print("No tasks found to execute.")
-		return
-	}
 
 	// defer creating a tar.gz file from the dumped output files
 	defer func() {
@@ -200,23 +186,8 @@ func main() {
 		log.Printf("Dumped system information to: %s", basePath+".tar.gz")
 	}()
 
-	log.Println("Running tasks...")
+	log.Print("Starting RHMAP System Dump Tool...")
+	log.Print("Running tasks...")
 
-	// Run at most N tasks in parallel, and wait for all of them to
-	// complete.
-	var wg sync.WaitGroup
-	sem := make(chan struct{}, *maxParallelTasks)
-	for _, task := range tasks {
-		task := task
-		wg.Add(1)
-		sem <- struct{}{}
-		go func() {
-			defer wg.Done()
-			task()
-			fmt.Fprint(os.Stderr, ".")
-			<-sem
-		}()
-	}
-	wg.Wait()
-	fmt.Fprintln(os.Stderr)
+	RunAllTasks(basePath, *concurrentTasks)
 }
