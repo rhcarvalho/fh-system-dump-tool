@@ -75,6 +75,8 @@ func GetAllDumpTasks(runner Runner, basepath string) <-chan Task {
 			tasks <- NewError(err)
 			return
 		}
+		// REVIEW: isn't there any tasks we could still run even though
+		// we have no projects?
 		if len(projects) == 0 {
 			tasks <- NewError(errors.New("no projects visible to the currently logged in user"))
 			return
