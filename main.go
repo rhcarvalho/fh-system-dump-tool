@@ -35,7 +35,7 @@ const (
 var (
 	maxParallelTasks = flag.Int("p", runtime.NumCPU(), "max number of tasks to run in parallel")
 	maxLogLines      = flag.Int("max-log-lines", defaultMaxLogLines, "max number of log lines fetched with oc logs")
-	versionCheck     = flag.Bool("version", false, "Output the current version of the system-dump-tool")
+	printVersion     = flag.Bool("version", false, "print version and exit")
 )
 
 func runCmdCaptureOutput(cmd *exec.Cmd, out, errOut io.Writer) error {
@@ -135,7 +135,7 @@ func printError(err error) {
 func main() {
 	flag.Parse()
 
-	if *versionCheck {
+	if *printVersion {
 		fmt.Println("RHMAP fh-system-dump-tool v" + version)
 		os.Exit(0)
 	}
