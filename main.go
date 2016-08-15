@@ -35,7 +35,7 @@ const (
 var (
 	maxParallelTasks = flag.Int("p", runtime.NumCPU(), "max number of tasks to run in parallel")
 	maxLogLines      = flag.Int("max-log-lines", defaultMaxLogLines, "max number of log lines fetched with oc logs")
-	versionCheck     = flag.Bool("version", false, "Output the current version of the system-dump-tool")
+	printVersion     = flag.Bool("version", false, "print version and exit")
 )
 
 func runCmdCaptureOutput(cmd *exec.Cmd, out, errOut io.Writer) error {
@@ -135,7 +135,7 @@ func printError(err error) {
 func main() {
 	flag.Parse()
 
-	if *versionCheck {
+	if *printVersion {
 		fmt.Println("RHMAP fh-system-dump-tool v" + version)
 		os.Exit(0)
 	}
@@ -145,14 +145,25 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.Println("Starting RHMAP System Dump Tool...")
-
 	start := time.Now().UTC()
 	startTimestamp := start.Format(dumpTimestampFormat)
 
 	basePath := filepath.Join(dumpDir, startTimestamp)
 
-	log.Println("Preparing tasks...")
+	if err := os.MkdirAll(basePath, 0770); err != nil {
+		log.Fatalln("Error:", err)
+	}
+
+	logfile, err := os.Create(filepath.Join(basePath, "dump.log"))
+	if err != nil {
+		log.Fatalln("Error:", err)
+	}
+	defer logfile.Close()
+	log.SetOutput(io.MultiWriter(os.Stderr, logfile))
+	fileOnlyLogger := log.New(logfile, "", log.LstdFlags)
+
+	log.Print("Starting RHMAP System Dump Tool...")
+	log.Print("Preparing tasks...")
 
 	tasks, err := GetAllTasks(basePath)
 	if err != nil {
@@ -160,12 +171,16 @@ func main() {
 		defer os.Exit(1)
 	}
 	if len(tasks) == 0 {
-		fmt.Println("No tasks found to execute.")
+		log.Print("No tasks found to execute.")
 		return
 	}
 
 	// defer creating a tar.gz file from the dumped output files
 	defer func() {
+		// Write this only to logfile, before we archive it and remove
+		// basePath. After that, logs will go only to stderr.
+		fileOnlyLogger.Printf("Dumped system information to: %s", basePath)
+
 		var stdout, stderr bytes.Buffer
 
 		cmd := exec.Command("tar", "-czf", basePath+".tar.gz", basePath)
@@ -175,23 +190,17 @@ func main() {
 			log.Printf("Dumped system information to: %s", basePath)
 			return
 		}
-		cmd = exec.Command("rm", "-rf", basePath)
-		cmd.Run()
+
+		// The archive was created successfully, remove basePath. The
+		// error from os.RemoveAll is intentionally ignored, since there
+		// is no useful action we can do, and we don't need to confuse
+		// the user with an error message.
+		os.RemoveAll(basePath)
 
 		log.Printf("Dumped system information to: %s", basePath+".tar.gz")
 	}()
 
 	log.Println("Running tasks...")
-
-	// Avoid the creating goroutines and other controls if we're executing
-	// tasks sequentially.
-	if *maxParallelTasks == 1 {
-		for _, task := range tasks {
-			task()
-			fmt.Fprint(os.Stderr, ".")
-		}
-		return
-	}
 
 	// Run at most N tasks in parallel, and wait for all of them to
 	// complete.
@@ -209,6 +218,5 @@ func main() {
 		}()
 	}
 	wg.Wait()
-
 	fmt.Fprintln(os.Stderr)
 }
