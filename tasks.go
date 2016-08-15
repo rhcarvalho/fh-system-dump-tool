@@ -93,7 +93,7 @@ func GetAllTasks(runner Runner, basepath string) <-chan Task {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			GetNagiosTasks(tasks, projects, basepath, getResourceNamesBySubstr)
+			GetNagiosTasks(tasks, runner, projects)
 		}()
 
 		wg.Wait()
@@ -116,28 +116,20 @@ func NewError(err error) Task {
 	return func() error { return err }
 }
 
-type ResourceMatchFactory func(project, resource, substr string) ([]string, error)
-
 // GetNagiosTasks sends tasks to dump Nagios data for each project that contain
-// a Nagios pod. This function will output an error to the user if no Nagios pods
-// were found in any projects.
-func GetNagiosTasks(tasks chan<- Task, projects []string, basepath string, resourceFactory ResourceMatchFactory) {
+// a Nagios pod. It is an error if no projects contain a Nagios pod.
+func GetNagiosTasks(tasks chan<- Task, runner Runner, projects []string) {
 	foundANagiosPod := false
 	for _, p := range projects {
-		pods, err := resourceFactory(p, "pod", "nagios")
+		pods, err := getResourceNamesBySubstr(p, "pod", "nagios")
 		if err != nil {
 			tasks <- NewError(err)
 			continue
 		}
 		for _, pod := range pods {
 			foundANagiosPod = true
-			outFor := outToFile(basepath, "dat", "nagios")
-			errOutFor := outToFile(basepath, "stderr", "nagios")
-			tasks <- GetNagiosStatusData(p, pod, outFor, errOutFor)
-
-			outFor = outToFile(basepath, "tar", "nagios")
-			errOutFor = outToFile(basepath, "stderr", "nagios")
-			tasks <- GetNagiosHistoricalData(p, pod, outFor, errOutFor)
+			tasks <- GetNagiosStatusData(runner, p, pod)
+			tasks <- GetNagiosHistoricalData(runner, p, pod)
 		}
 	}
 
