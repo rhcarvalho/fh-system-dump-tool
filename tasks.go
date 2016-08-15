@@ -79,7 +79,7 @@ func GetAllTasks(runner Runner, basepath string) <-chan Task {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			GetResourceDefinitionsTasks(tasks, projects, resources, basepath)
+			GetResourceDefinitionTasks(tasks, runner, projects, resources)
 		}()
 
 		// Add tasks to fetch logs.
@@ -146,14 +146,13 @@ func GetNagiosTasks(tasks chan<- Task, projects []string, basepath string, resou
 	}
 }
 
-// GetResourceDefinitionsTasks sends tasks to fetch the definitions of all
+// GetResourceDefinitionTasks sends tasks to fetch the definitions of all
 // resources in all projects.
-// FIXME: GetResourceDefinitionsTasks should not know about basepath.
-func GetResourceDefinitionsTasks(tasks chan<- Task, projects, resources []string, basepath string) {
+func GetResourceDefinitionTasks(tasks chan<- Task, runner Runner, projects, resources []string) {
 	for _, p := range projects {
-		outFor := outToFile(basepath, "json", "definitions")
-		errOutFor := outToFile(basepath, "stderr", "definitions")
-		tasks <- ResourceDefinitions(p, resources, outFor, errOutFor)
+		for _, resource := range resources {
+			tasks <- ResourceDefinition(runner, p, resource)
+		}
 	}
 }
 

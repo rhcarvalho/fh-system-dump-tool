@@ -1,6 +1,26 @@
 package main
 
-import "os/exec"
+import (
+	"os/exec"
+	"path/filepath"
+	"strings"
+)
+
+// ResourceDefinition is a task factory for tasks that fetch the JSON resource
+// definition for the given resource in the given project.
+func ResourceDefinition(r Runner, project, resource string) Task {
+	return func() error {
+		// NOTE: we could fetch all resources of all types in a single
+		// call to oc, by passing a comma-separated list of resource
+		// types. Instead, we call oc multiple times to send the output
+		// to different files without processing the contents of the
+		// output from oc.
+		cmd := exec.Command("oc", "-n", project, "get", resource, "-o=json")
+		fname := strings.Replace(resource, "/", "_", -1) + ".json"
+		path := filepath.Join("projects", project, "definitions", fname)
+		return r.Run(cmd, path)
+	}
+}
 
 // ResourceDefinitions is a task factory for tasks that fetch the JSON resource
 // definition for all given types in project. For each resource type, the task
