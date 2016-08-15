@@ -187,7 +187,9 @@ func main() {
 	}()
 
 	log.Print("Starting RHMAP System Dump Tool...")
-	log.Print("Running tasks...")
 
-	RunAllTasks(basePath, *concurrentTasks)
+	runner := NewDumpRunner(basePath)
+
+	log.Print("Running tasks...")
+	RunAllTasks(runner, basePath, *concurrentTasks)
 }

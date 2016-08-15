@@ -1,79 +1,56 @@
 package main
 
 import (
-	"bytes"
-	"fmt"
-	"os/exec"
-	"strings"
+	"path/filepath"
+	"reflect"
 	"testing"
 )
 
 func TestFetchLogs(t *testing.T) {
-	echoCmdFactory := func(resource LoggableResource) *exec.Cmd {
-		return helperCommand("echo", fmt.Sprintf(`%+v`, resource))
-	}
-	falseCmdFactory := func(resource LoggableResource) *exec.Cmd {
-		return helperCommand("stderrfail")
-	}
 	tests := []struct {
-		cmdFactory             logsCmdFactory
-		resource               LoggableResource
-		shouldFail             bool
-		wantStdout, wantStderr string
+		resource LoggableResource
+		maxLines int
+		calls    []RunCall
 	}{
 		{
-			cmdFactory: echoCmdFactory,
 			resource: LoggableResource{
 				Project:   "test-project",
 				Type:      "pod",
 				Name:      "pod-1",
 				Container: "container-1",
 			},
-			wantStdout: "{Project:test-project Type:pod Name:pod-1 Container:container-1}\n",
-			wantStderr: "",
+			maxLines: 42,
+			calls: []RunCall{
+				{
+					[]string{"oc", "-n", "test-project", "logs", "pod/pod-1", "-c", "container-1", "--tail", "42"},
+					filepath.Join("projects", "test-project", "logs", "pod_pod-1_container-1.logs"),
+				},
+			},
 		},
 		{
-			cmdFactory: echoCmdFactory,
 			resource: LoggableResource{
-				Project: "test-project",
-				Type:    "dc",
-				Name:    "dc-1",
+				Project:   "another-project",
+				Type:      "",
+				Name:      "supercore",
+				Container: "web",
 			},
-			wantStdout: "{Project:test-project Type:dc Name:dc-1 Container:}\n",
-			wantStderr: "",
-		},
-		{
-			cmdFactory: falseCmdFactory,
-			resource: LoggableResource{
-				Project: "test-project",
-				Type:    "dc",
-				Name:    "dc-1",
+			maxLines: 100,
+			calls: []RunCall{
+				{
+					[]string{"oc", "-n", "another-project", "logs", "supercore", "-c", "web", "--tail", "100"},
+					filepath.Join("projects", "another-project", "logs", "supercore_web.logs"),
+				},
 			},
-			shouldFail: true,
-			wantStdout: "",
-			wantStderr: "some stderr text\n",
 		},
 	}
-	for _, tt := range tests {
-		var stdout, stderr bytes.Buffer
-		task := fetchLogs(tt.cmdFactory, tt.resource, &stdout, &stderr)
-
-		err := task()
-		if (err != nil) != tt.shouldFail {
-			want := "nil"
-			if tt.shouldFail {
-				want = "not nil"
-			}
-			t.Errorf("task() = %v, want %v", err, want)
+	for i, tt := range tests {
+		runner := &FakeRunner{}
+		task := FetchLogs(runner, tt.resource, tt.maxLines)
+		if err := task(); err != nil {
+			t.Errorf("test %d: task() = %v, want %v", i, err, nil)
 		}
-		if tt.shouldFail && !strings.Contains(err.Error(), tt.wantStderr) {
-			t.Errorf("error message doesn't include stderr:\ngot: %v\nwant: %v", err, tt.wantStderr)
-		}
-		if got := stdout.String(); got != tt.wantStdout {
-			t.Errorf("stdout = %q, want %q", got, tt.wantStdout)
-		}
-		if got := stderr.String(); got != tt.wantStderr {
-			t.Errorf("stderr = %q, want %q", got, tt.wantStderr)
+		if !reflect.DeepEqual(runner.Calls, tt.calls) {
+			t.Errorf("test %d: runner.Calls = %q, want %q", i, runner.Calls, tt.calls)
 		}
 	}
 }
