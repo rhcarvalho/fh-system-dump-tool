@@ -23,6 +23,53 @@ type LoggableResource struct {
 	Container string
 }
 
+// GetFetchLogsTasks sends tasks to fetch current and previous logs of all
+// resources in all projects.
+func GetFetchLogsTasks(tasks chan<- Task, runner Runner, projects, resources []string) {
+	loggableResources, err := GetLogabbleResources(projects, resources)
+	if err != nil {
+		tasks <- NewError(err)
+		// continue and iterate over loggableResources even if there was
+		// an error.
+	}
+	for _, r := range loggableResources {
+		// Send task to fetch current logs.
+		tasks <- FetchLogs(runner, r, *maxLogLines)
+		// Send task to fetch previous logs.
+		tasks <- FetchPreviousLogs(runner, r, *maxLogLines)
+	}
+}
+
+// GetLogabbleResources returns a list of loggable resources. It may return
+// results even in the presence of an error.
+func GetLogabbleResources(projects, resources []string) ([]LoggableResource, error) {
+	var (
+		loggableResources []LoggableResource
+		errors            errorList
+	)
+	for _, p := range projects {
+		for _, rtype := range resources {
+			names, err := GetResourceNames(p, rtype)
+			if err != nil {
+				errors = append(errors, err)
+				continue
+			}
+			for _, name := range names {
+				resources, err := GetLoggableResources(p, rtype, name)
+				if err != nil {
+					errors = append(errors, err)
+					continue
+				}
+				loggableResources = append(loggableResources, resources...)
+			}
+		}
+	}
+	if len(errors) > 0 {
+		return loggableResources, errors
+	}
+	return loggableResources, nil
+}
+
 // FetchLogs is a task factory for tasks that fetch the logs of a
 // LoggableResource. Set maxLines to limit how many lines are fetched. Logs are
 // written to out and eventual error messages go to errOut.
