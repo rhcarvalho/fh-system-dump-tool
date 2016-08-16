@@ -180,6 +180,7 @@ func RunAllAnalysisTasks(runner Runner, path string, workers int) AnalysisResult
 			analysisResult.Platform = append(analysisResult.Platform, result.Platform...)
 			analysisResult.Projects = append(analysisResult.Projects, result.Projects...)
 
+			// REVIEW: unify JSON output formatting.
 			output, err := json.MarshalIndent(analysisResult, "", "    ")
 			if err != nil {
 				results <- err
