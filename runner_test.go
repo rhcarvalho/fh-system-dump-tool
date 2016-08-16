@@ -22,14 +22,22 @@ func TestDumpRunner(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(dir)
+	workDir, err := ioutil.TempDir("", "test-dumprunner-workdir-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(workDir)
 
 	if *printTree {
-		defer func() { t.Log("\n" + tree(dir)) }()
+		defer func() {
+			t.Log("\n" + tree(dir))
+			t.Log("\n" + catFiles(workDir))
+		}()
 	}
 
 	// We will use dr several times to make sure it does what it should do.
 	// Each subtest begins with setting the cmd we will run.
-	dr := NewDumpRunner(dir)
+	dr := NewDumpRunner(dir, workDir)
 
 	// #1 -- common case, command exits with 0, output is saved to a file.
 	cmd := helperCommand("echo", "ok")
@@ -104,6 +112,11 @@ func TestDumpRunner(t *testing.T) {
 
 func tree(dir string) string {
 	b, _ := exec.Command("tree", "-Fah", dir).CombinedOutput()
+	return string(b)
+}
+
+func catFiles(dir string) string {
+	b, _ := exec.Command("bash", "-c", "cat $1/*", "--", dir).CombinedOutput()
 	return string(b)
 }
 

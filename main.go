@@ -156,7 +156,8 @@ func main() {
 
 	log.Print("Starting RHMAP System Dump Tool...")
 
-	runner := NewDumpRunner(basePath)
+	metaDir := filepath.Join(basePath, "_meta", "exec")
+	runner := NewDumpRunner(basePath, metaDir)
 
 	log.Print("Running dump and analyse tasks...")
 	RunAllDumpTasks(runner, basePath, *concurrentTasks, fileOnlyLogger)
