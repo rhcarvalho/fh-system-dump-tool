@@ -127,10 +127,6 @@ func getSpaceSeparated(cmd *exec.Cmd) ([]string, error) {
 	return projects, nil
 }
 
-func printError(err error) {
-	fmt.Fprintf(os.Stderr, "error: %v\n", err)
-}
-
 func main() {
 	flag.Parse()
 
@@ -140,7 +136,7 @@ func main() {
 	}
 
 	if !(*concurrentTasks > 0) {
-		printError(fmt.Errorf("argument to -p flag must be greater than 0"))
+		fmt.Fprintln(os.Stderr, "Error: argument to -p flag must be greater than 0")
 		os.Exit(1)
 	}
 
