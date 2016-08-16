@@ -3,8 +3,21 @@ package main
 import (
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
+
+func TestGetNagiosTasks(t *testing.T) {
+	tasks := make(chan Task, 1)
+	runner := &FakeRunner{}
+	GetNagiosTasks(tasks, runner, nil)
+	task := <-tasks
+
+	want := "Nagios pod could not be found"
+	if err := task(); err == nil || !strings.Contains(err.Error(), want) {
+		t.Errorf("task() = %q, want substring of %q", err, want)
+	}
+}
 
 func TestGetNagiosStatusData(t *testing.T) {
 	tests := []struct {
