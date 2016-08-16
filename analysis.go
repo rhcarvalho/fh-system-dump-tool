@@ -52,27 +52,25 @@ type DeploymentConfigs struct {
 
 type CheckTask func(string, io.Writer) (Result, error)
 
-// ResourceDefinitions is a task factory for tasks that fetch the JSON resource
-// definition for all given types in project. For each resource type, the task
-// uses outFor and errOutFor to get io.Writers to write, respectively, the JSON
-// output and any eventual error message.
+// CheckTasks is a task factory for tasks that diagnose system conditions.
 func CheckTasks(project string, outFor, errOutFor projectResourceWriterCloserFactory) Task {
 	return checkTasks(func() []CheckTask {
 		return []CheckTask{CheckImagePullBackOff, CheckDeployConfigsReplicasNotZero}
 	}, project, outFor, errOutFor)
 }
 
-// A getProjectCheckFactory generates commands to get resources of a given
-// type in a project.
+// A getProjectCheckFactory generates tasks to diagnose system conditions.
 type getProjectCheckFactory func() []CheckTask
 
 type CheckResults struct {
 	Results []Result
 }
 
-// CheckTasks will execute all the CheckTasks returned from the supplied checkFactory against the specified project
-// The results of the checks are combined into a single JSON object and written to the writer return from outFor, any
-// errors that occur during the test are written to the writer returned from errOutFor.
+// checkTasks executes all the CheckTasks returned from the supplied
+// checkFactory against the specified project. The results of the checks are
+// combined into a single JSON object and written to the writer returned from
+// outFor, any errors that occur during the test are written to the writer
+// returned from errOutFor.
 func checkTasks(checkFactory getProjectCheckFactory, project string, outFor, errOutFor projectResourceWriterCloserFactory) Task {
 	return func() error {
 		stdOut, stdOutCloser, err := outFor(project, "analysis")
@@ -114,8 +112,8 @@ func checkTasks(checkFactory getProjectCheckFactory, project string, outFor, err
 	}
 }
 
-// getResourceStruct will retrieve the requested resource in the supplied project from the platform and parse the JSON
-// into the supplied interface.
+// getResourceStruct retrieves the requested resource in the supplied project
+// from the platform and parse the JSON into the supplied interface.
 func getResourceStruct(project, resource string, dest interface{}) error {
 	stdOut := bytes.NewBuffer([]byte{})
 	stdErr := bytes.NewBuffer([]byte{})
@@ -147,9 +145,10 @@ func getResourceStruct(project, resource string, dest interface{}) error {
 	return nil
 }
 
-// CheckImagePullBackOff will check all events in the supplied project and if any are exhibiting signs that they have
-// experience an ImagePullBackOff recently this will be reflected in the returned Result data. Any errors are written
-// to the supplied stdErr writer
+// CheckImagePullBackOff checks all events in the supplied project and if any
+// are exhibiting signs that they have experienced an ImagePullBackOff recently
+// this will be reflected in the returned Result data. Any errors are written to
+// the supplied stdErr writer.
 func CheckImagePullBackOff(project string, stdErr io.Writer) (Result, error) {
 	result := Result{Status: 0, StatusMessage: "this issue was not detected", CheckName: "check deploys for ImagePullBackOff error"}
 	events := Events{}
@@ -171,8 +170,10 @@ func CheckImagePullBackOff(project string, stdErr io.Writer) (Result, error) {
 	return result, nil
 }
 
-// CheckDeployConfigsReplicasNotZero will check all deployconfigs in the supplied project and if any have replicas set
-// to zero this will be reflected in the returned Result data. Any errors are written to the supplied stdErr writer
+// CheckDeployConfigsReplicasNotZero checks all deployment configs in the
+// supplied project and if any have replicas set to zero this will be reflected
+// in the returned Result data. Any errors are written to the supplied stdErr
+// writer.
 func CheckDeployConfigsReplicasNotZero(project string, stdErr io.Writer) (Result, error) {
 	result := Result{Status: 0, StatusMessage: "this issue was not detected", CheckName: "check deployconfig replicas not 0"}
 	deploymentConfigs := DeploymentConfigs{}
