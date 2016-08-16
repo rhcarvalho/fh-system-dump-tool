@@ -36,6 +36,8 @@ func FetchPreviousLogs(resource LoggableResource, maxLines int, out, errOut io.W
 	return ocLogs(resource, maxLines, []string{"--previous"}, out, errOut)
 }
 
+type ResourceMatchFactory func(project, resource, substr string) ([]string, error)
+
 // ocLogs fetches logs from OpenShift resources using oc.
 func ocLogs(resource LoggableResource, maxLines int, extraArgs []string, out, errOut io.Writer) Task {
 	return fetchLogs(func(resource LoggableResource) *exec.Cmd {
