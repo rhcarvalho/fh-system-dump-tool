@@ -41,6 +41,7 @@ func GetNagiosStatusData(r Runner, project, pod string) Task {
 
 // GetNagiosHistoricalData is a task factory for tasks that fetch Nagios
 // archives from the given pod in project.
+// REVIEW: shouldn't we target an specific container in the pod?
 func GetNagiosHistoricalData(r Runner, project, pod string) Task {
 	return func() error {
 		cmd := exec.Command("oc", "-n", project, "exec", pod, "--", "tar", "-c", "-C", "/var/log/nagios", "archives")
