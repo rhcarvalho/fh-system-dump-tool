@@ -98,7 +98,9 @@ func GetAllTasks(runner Runner, basepath string) <-chan Task {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			GetFetchLogsTasks(tasks, runner, projects, resourcesWithLogs)
+			// FIXME: we should not be accessing a flag value
+			// (global) here, instead take maxLines as an argument.
+			GetFetchLogsTasks(tasks, runner, projects, resourcesWithLogs, *maxLogLines)
 		}()
 
 		// Add tasks to fetch Nagios data.
