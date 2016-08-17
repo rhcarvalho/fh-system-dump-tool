@@ -96,6 +96,12 @@ func GetAllTasks(runner Runner, basepath string) <-chan Task {
 			GetNagiosTasks(tasks, projects, basepath, getResourceNamesBySubstr)
 		}()
 
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			tasks <- GetOcAdmDiagnosticsTask(runner)
+		}()
+
 		wg.Wait()
 
 		// After all other tasks are done, add analysis tasks. We want
