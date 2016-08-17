@@ -75,7 +75,7 @@ func GetAllTasks(runner Runner, basepath string) <-chan Task {
 	go func() {
 		defer close(tasks)
 
-		projects, err := GetProjects()
+		projects, err := GetProjects(runner)
 		if err != nil {
 			tasks <- NewError(err)
 			return

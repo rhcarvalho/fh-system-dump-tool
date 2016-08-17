@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -48,7 +49,9 @@ func GetLogabbleResources(projects, resources []string) ([]LoggableResource, err
 	)
 	for _, p := range projects {
 		for _, rtype := range resources {
-			names, err := GetResourceNames(p, rtype)
+			// FIXME: take runner as argument.
+			runner := simpleRunner{}
+			names, err := GetResourceNames(runner, p, rtype)
 			if err != nil {
 				errors = append(errors, err)
 				continue
@@ -114,7 +117,7 @@ func GetLoggableResources(project, rtype, name string) ([]LoggableResource, erro
 	return getLoggableResources(GetPodContainers, project, rtype, name)
 }
 
-func getLoggableResources(getPodContainers func(string, string) ([]string, error), project, rtype, name string) ([]LoggableResource, error) {
+func getLoggableResources(getPodContainers func(Runner, string, string) ([]string, error), project, rtype, name string) ([]LoggableResource, error) {
 	var (
 		loggableResources []LoggableResource
 		containers        []string
@@ -122,7 +125,9 @@ func getLoggableResources(getPodContainers func(string, string) ([]string, error
 	switch rtype {
 	case "po", "pod", "pods":
 		var err error
-		containers, err = getPodContainers(project, name)
+		// FIXME: take runner as argument.
+		runner := simpleRunner{}
+		containers, err = getPodContainers(runner, project, name)
 		if err != nil {
 			return nil, err
 		}
@@ -146,6 +151,12 @@ func getLoggableResources(getPodContainers func(string, string) ([]string, error
 
 // GetPodContainers returns a list of container names for the named pod in the
 // project.
-func GetPodContainers(project, name string) ([]string, error) {
-	return getSpaceSeparated(exec.Command("oc", "-n", project, "get", "pod", name, "-o=jsonpath={.spec.containers[*].name}"))
+func GetPodContainers(runner Runner, project, name string) ([]string, error) {
+	cmd := exec.Command("oc", "-n", project, "get", "pod", name, "-o=jsonpath={.spec.containers[*].name}")
+	var b bytes.Buffer
+	cmd.Stdout = &b
+	if err := runner.Run(cmd, filepath.Join("projects", project, "pods", name, "container-names")); err != nil {
+		return nil, err
+	}
+	return readSpaceSeparated(&b)
 }
