@@ -25,9 +25,21 @@ func ResourceDefinition(r Runner, project, resource string) Task {
 		// types. Instead, we call oc multiple times to send the output
 		// to different files without processing the contents of the
 		// output from oc.
-		cmd := exec.Command("oc", "-n", project, "get", resource, "-o=json")
+		var args []string
+		if project != "" {
+			args = append(args, "-n", project)
+		}
+		args = append(args, "get", resource, "-o=json")
+		cmd := exec.Command("oc", args...)
+
+		var tree []string
+		if project != "" {
+			tree = append(tree, "projects", project)
+		}
 		fname := strings.Replace(resource, "/", "_", -1) + ".json"
-		path := filepath.Join("projects", project, "definitions", fname)
+		tree = append(tree, "definitions", fname)
+
+		path := filepath.Join(tree...)
 		return r.Run(cmd, path)
 	}
 }

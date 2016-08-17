@@ -66,7 +66,10 @@ func RunAllTasks(runner Runner, path string, workers int) {
 // FIXME: GetAllTasks should not need to know about basepath.
 func GetAllTasks(runner Runner, basepath string) <-chan Task {
 	var (
-		resources = []string{"deploymentconfigs", "pods", "services", "events"}
+		resources = []string{
+			"deploymentconfigs", "pods", "services", "events",
+			"persistentvolumeclaims",
+		}
 		// We should only care about logs for pods, because they cover
 		// all other possible types.
 		resourcesWithLogs = []string{"pods"}
@@ -92,6 +95,10 @@ func GetAllTasks(runner Runner, basepath string) <-chan Task {
 		go func() {
 			defer wg.Done()
 			GetResourceDefinitionTasks(tasks, runner, projects, resources)
+			// Persistent volumes are cluster-scoped, so we need
+			// only one task to fetch all definitions, instead of
+			// one per project.
+			tasks <- ResourceDefinition(runner, "", "persistentvolumes")
 		}()
 
 		// Add tasks to fetch logs.
