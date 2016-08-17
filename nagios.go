@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 // GetNagiosTasks sends tasks to dump Nagios data for each project that contain
@@ -47,4 +48,23 @@ func GetNagiosHistoricalData(r Runner, project, pod string) Task {
 		path := filepath.Join("projects", project, "nagios", fname)
 		return r.Run(cmd, path)
 	}
+}
+
+// getResourceNamesBySubstr returns a list of names for the provided resource type that contain
+// the provided string, in the provided project.
+func getResourceNamesBySubstr(project, resource, substr string) ([]string, error) {
+	resources, err := GetResourceNames(project, resource)
+	if err != nil {
+		return nil, err
+	}
+
+	filtered := resources[:0]
+
+	for _, resource := range resources {
+		if strings.Contains(resource, substr) {
+			filtered = append(filtered, resource)
+		}
+	}
+
+	return filtered, nil
 }
