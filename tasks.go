@@ -13,8 +13,8 @@ type Task func() error
 
 // RunAllTasks runs all tasks known to the dump tool using concurrent workers.
 // Dump output goes to path.
-func RunAllTasks(path string, workers int) {
-	tasks := GetAllTasks(path)
+func RunAllTasks(runner Runner, path string, workers int) {
+	tasks := GetAllTasks(runner, path)
 	results := make(chan error)
 
 	// Start worker goroutines to run tasks concurrently.
@@ -52,7 +52,7 @@ func RunAllTasks(path string, workers int) {
 // immediately and sends tasks to the channel in a separate goroutine. The
 // channel is closed after all tasks are sent.
 // FIXME: GetAllTasks should not need to know about basepath.
-func GetAllTasks(basepath string) <-chan Task {
+func GetAllTasks(runner Runner, basepath string) <-chan Task {
 	var (
 		resources = []string{"deploymentconfigs", "pods", "services", "events"}
 		// We should only care about logs for pods, because they cover
@@ -86,7 +86,7 @@ func GetAllTasks(basepath string) <-chan Task {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			GetFetchLogsTasks(tasks, projects, resourcesWithLogs, basepath)
+			GetFetchLogsTasks(tasks, runner, projects, resourcesWithLogs)
 		}()
 
 		// Add tasks to fetch Nagios data.
@@ -115,6 +115,8 @@ func GetAllTasks(basepath string) <-chan Task {
 func NewError(err error) Task {
 	return func() error { return err }
 }
+
+type ResourceMatchFactory func(project, resource, substr string) ([]string, error)
 
 // GetNagiosTasks sends tasks to dump Nagios data for each project that contain
 // a Nagios pod. This function will output an error to the user if no Nagios pods
@@ -157,8 +159,7 @@ func GetResourceDefinitionsTasks(tasks chan<- Task, projects, resources []string
 
 // GetFetchLogsTasks sends tasks to fetch current and previous logs of all
 // resources in all projects.
-// FIXME: GetFetchLogsTasks should not need to know about the output directory.
-func GetFetchLogsTasks(tasks chan<- Task, projects, resources []string, basepath string) {
+func GetFetchLogsTasks(tasks chan<- Task, runner Runner, projects, resources []string) {
 	loggableResources, err := GetLogabbleResources(projects, resources)
 	if err != nil {
 		tasks <- NewError(err)
@@ -166,33 +167,10 @@ func GetFetchLogsTasks(tasks chan<- Task, projects, resources []string, basepath
 		// an error.
 	}
 	for _, r := range loggableResources {
-		r := r
-		name := r.Type + "-" + r.Name
-		if r.Container != "" {
-			name += "-" + r.Container
-		}
 		// Send task to fetch current logs.
-		{
-			// FIXME: Do not ignore errors.
-			out, outCloser, _ := outToFile(basepath, "logs", "logs")(r.Project, name)
-			errOut, errOutCloser, _ := outToFile(basepath, "stderr", "logs")(r.Project, name)
-			tasks <- func() error {
-				defer outCloser.Close()
-				defer errOutCloser.Close()
-				return FetchLogs(r, *maxLogLines, out, errOut)()
-			}
-		}
+		tasks <- FetchLogs(runner, r, *maxLogLines)
 		// Send task to fetch previous logs.
-		{
-			// FIXME: Do not ignore errors.
-			out, outCloser, _ := outToFile(basepath, "logs", "logs-previous")(r.Project, name)
-			errOut, errOutCloser, _ := outToFile(basepath, "stderr", "logs-previous")(r.Project, name)
-			tasks <- func() error {
-				defer outCloser.Close()
-				defer errOutCloser.Close()
-				return FetchPreviousLogs(r, *maxLogLines, out, errOut)()
-			}
-		}
+		tasks <- FetchPreviousLogs(runner, r, *maxLogLines)
 	}
 }
 

@@ -1,8 +1,8 @@
 package main
 
 import (
-	"io"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -26,38 +26,38 @@ type LoggableResource struct {
 // FetchLogs is a task factory for tasks that fetch the logs of a
 // LoggableResource. Set maxLines to limit how many lines are fetched. Logs are
 // written to out and eventual error messages go to errOut.
-func FetchLogs(resource LoggableResource, maxLines int, out, errOut io.Writer) Task {
-	return ocLogs(resource, maxLines, nil, out, errOut)
+func FetchLogs(r Runner, resource LoggableResource, maxLines int) Task {
+	return ocLogs(r, resource, maxLines, nil, "logs")
 }
 
 // FetchPreviousLogs is like FetchLogs, but for the previous version of a
 // resource.
-func FetchPreviousLogs(resource LoggableResource, maxLines int, out, errOut io.Writer) Task {
-	return ocLogs(resource, maxLines, []string{"--previous"}, out, errOut)
+func FetchPreviousLogs(r Runner, resource LoggableResource, maxLines int) Task {
+	return ocLogs(r, resource, maxLines, []string{"--previous"}, "logs-previous")
 }
 
-type ResourceMatchFactory func(project, resource, substr string) ([]string, error)
-
-// ocLogs fetches logs from OpenShift resources using oc.
-func ocLogs(resource LoggableResource, maxLines int, extraArgs []string, out, errOut io.Writer) Task {
-	return fetchLogs(func(resource LoggableResource) *exec.Cmd {
-		return exec.Command("oc", append([]string{
+// ocLogs fetches logs from an OpenShift resource using oc.
+func ocLogs(r Runner, resource LoggableResource, maxLines int, extraArgs []string, what string) Task {
+	return func() error {
+		name := resource.Name
+		if resource.Type != "" {
+			name = resource.Type + "/" + name
+		}
+		cmd := exec.Command("oc", append([]string{
 			"-n", resource.Project,
-			"logs", resource.Type + "/" + resource.Name,
+			"logs", name,
 			"-c", resource.Container,
 			"--tail", strconv.Itoa(maxLines)},
 			extraArgs...)...)
-	}, resource, out, errOut)
-}
-
-// A logsCmdFactory generates commands to fetch logs of a given resource type
-// and name.
-type logsCmdFactory func(resource LoggableResource) *exec.Cmd
-
-func fetchLogs(cmdFactory logsCmdFactory, resource LoggableResource, out, errOut io.Writer) Task {
-	return func() error {
-		cmd := cmdFactory(resource)
-		return runCmdCaptureOutput(cmd, out, errOut)
+		filename := resource.Name
+		if resource.Type != "" {
+			filename = resource.Type + "_" + filename
+		}
+		if resource.Container != "" {
+			filename += "_" + resource.Container
+		}
+		path := filepath.Join("projects", resource.Project, what, filename+".logs")
+		return r.Run(cmd, path)
 	}
 }
 
