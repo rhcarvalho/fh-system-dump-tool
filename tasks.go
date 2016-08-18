@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
 )
 
 // A Task performs some part of the RHMAP System Dump Tool.
@@ -14,6 +15,8 @@ type Task func() error
 // RunAllTasks runs all tasks known to the dump tool using concurrent workers.
 // Dump output goes to path.
 func RunAllTasks(runner Runner, path string, workers int) {
+	start := time.Now()
+
 	tasks := GetAllTasks(runner, path)
 	results := make(chan error)
 
@@ -34,8 +37,12 @@ func RunAllTasks(runner Runner, path string, workers int) {
 		wg.Wait()
 		close(results)
 	}()
+
+	taskCount := 0
+
 	// Loop through the task execution results and log errors.
 	for err := range results {
+		taskCount++
 		if err != nil {
 			// TODO: there should be a way to identify which task
 			// had an error.
@@ -46,6 +53,11 @@ func RunAllTasks(runner Runner, path string, workers int) {
 		fmt.Fprint(os.Stderr, ".")
 	}
 	fmt.Fprintln(os.Stderr)
+
+	delta := time.Since(start)
+	// Remove sub-second precision.
+	delta -= delta % time.Second
+	log.Printf("Run %d tasks in %v.", taskCount, delta)
 }
 
 // GetAllTasks returns a channel of all tasks known to the dump tool. It returns
