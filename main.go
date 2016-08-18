@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -152,6 +153,10 @@ func main() {
 	basePath := filepath.Join(dumpDir, startTimestamp)
 
 	if err := os.MkdirAll(basePath, 0770); err != nil {
+		log.Fatalln("Error:", err)
+	}
+
+	if err := ioutil.WriteFile(filepath.Join(basePath, ".version"), []byte(version), 0660); err != nil {
 		log.Fatalln("Error:", err)
 	}
 
