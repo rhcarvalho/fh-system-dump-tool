@@ -6,6 +6,16 @@ import (
 	"strings"
 )
 
+// GetResourceDefinitionTasks sends tasks to fetch the definitions of all
+// resources in all projects.
+func GetResourceDefinitionTasks(tasks chan<- Task, runner Runner, projects, resources []string) {
+	for _, p := range projects {
+		for _, resource := range resources {
+			tasks <- ResourceDefinition(runner, p, resource)
+		}
+	}
+}
+
 // ResourceDefinition is a task factory for tasks that fetch the JSON resource
 // definition for the given resource in the given project.
 func ResourceDefinition(r Runner, project, resource string) Task {

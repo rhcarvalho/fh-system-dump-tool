@@ -4,7 +4,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"strings"
 )
 
 // LoggableResource describes an OpenShift resource that produces logs. Even
@@ -21,6 +20,53 @@ type LoggableResource struct {
 	Name string
 	// Container is required for pods with more than one container.
 	Container string
+}
+
+// GetFetchLogsTasks sends tasks to fetch current and previous logs of all
+// resources in all projects.
+func GetFetchLogsTasks(tasks chan<- Task, runner Runner, projects, resources []string) {
+	loggableResources, err := GetLogabbleResources(projects, resources)
+	if err != nil {
+		tasks <- NewError(err)
+		// continue and iterate over loggableResources even if there was
+		// an error.
+	}
+	for _, r := range loggableResources {
+		// Send task to fetch current logs.
+		tasks <- FetchLogs(runner, r, *maxLogLines)
+		// Send task to fetch previous logs.
+		tasks <- FetchPreviousLogs(runner, r, *maxLogLines)
+	}
+}
+
+// GetLogabbleResources returns a list of loggable resources. It may return
+// results even in the presence of an error.
+func GetLogabbleResources(projects, resources []string) ([]LoggableResource, error) {
+	var (
+		loggableResources []LoggableResource
+		errors            errorList
+	)
+	for _, p := range projects {
+		for _, rtype := range resources {
+			names, err := GetResourceNames(p, rtype)
+			if err != nil {
+				errors = append(errors, err)
+				continue
+			}
+			for _, name := range names {
+				resources, err := GetLoggableResources(p, rtype, name)
+				if err != nil {
+					errors = append(errors, err)
+					continue
+				}
+				loggableResources = append(loggableResources, resources...)
+			}
+		}
+	}
+	if len(errors) > 0 {
+		return loggableResources, errors
+	}
+	return loggableResources, nil
 }
 
 // FetchLogs is a task factory for tasks that fetch the logs of a
@@ -96,25 +142,6 @@ func getLoggableResources(getPodContainers func(string, string) ([]string, error
 			})
 	}
 	return loggableResources, nil
-}
-
-// getResourceNamesBySubstr returns a list of names for the provided resource type that contain
-// the provided string, in the provided project.
-func getResourceNamesBySubstr(project, resource, substr string) ([]string, error) {
-	resources, err := GetResourceNames(project, resource)
-	if err != nil {
-		return nil, err
-	}
-
-	filtered := resources[:0]
-
-	for _, resource := range resources {
-		if strings.Contains(resource, substr) {
-			filtered = append(filtered, resource)
-		}
-	}
-
-	return filtered, nil
 }
 
 // GetPodContainers returns a list of container names for the named pod in the
