@@ -88,43 +88,49 @@ func runCmdCaptureOutputDeprecated(cmd *exec.Cmd, project, resource string, outF
 	return nil
 }
 
+// FIXME: get rid of this, use a DumpRunner.
+type simpleRunner struct{}
+
+func (simpleRunner) Run(cmd *exec.Cmd, path string) error {
+	return cmd.Run()
+}
+
 // GetProjects returns a list of project names visible by the current logged in
 // user.
-func GetProjects() ([]string, error) {
-	return getSpaceSeparated(exec.Command("oc", "get", "projects", "-o=jsonpath={.items[*].metadata.name}"))
+func GetProjects(runner Runner) ([]string, error) {
+	cmd := exec.Command("oc", "get", "projects", "-o=jsonpath={.items[*].metadata.name}")
+	var b bytes.Buffer
+	cmd.Stdout = &b
+	if err := runner.Run(cmd, filepath.Join("project-names")); err != nil {
+		return nil, err
+	}
+	return readSpaceSeparated(&b)
 }
 
 // GetResourceNames returns a list of resource names of type rtype, visible by
 // the current logged in user, scoped by project.
-func GetResourceNames(project, rtype string) ([]string, error) {
-	return getSpaceSeparated(exec.Command("oc", "-n", project, "get", rtype, "-o=jsonpath={.items[*].metadata.name}"))
-}
-
-// getSpaceSeparated calls cmd, expected to output a space-separated list of
-// words to stdout, and returns the words.
-func getSpaceSeparated(cmd *exec.Cmd) ([]string, error) {
-	var projects []string
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
+func GetResourceNames(runner Runner, project, rtype string) ([]string, error) {
+	cmd := exec.Command("oc", "-n", project, "get", rtype, "-o=jsonpath={.items[*].metadata.name}")
+	var b bytes.Buffer
+	cmd.Stdout = &b
+	if err := runner.Run(cmd, filepath.Join("projects", project, "names", rtype)); err != nil {
 		return nil, err
 	}
-	var buf bytes.Buffer
-	cmd.Stderr = &buf
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("command %q: %v", strings.Join(cmd.Args, " "), err)
-	}
-	scanner := bufio.NewScanner(stdout)
+	return readSpaceSeparated(&b)
+}
+
+// readSpaceSeparated reads from r and returns a list of space-separated words.
+func readSpaceSeparated(r io.Reader) ([]string, error) {
+	var words []string
+	scanner := bufio.NewScanner(r)
 	scanner.Split(bufio.ScanWords)
 	for scanner.Scan() {
-		projects = append(projects, scanner.Text())
+		words = append(words, scanner.Text())
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, err
 	}
-	if err := cmd.Wait(); err != nil {
-		return nil, fmt.Errorf("command %q: %v: %v", strings.Join(cmd.Args, " "), err, buf.String())
-	}
-	return projects, nil
+	return words, nil
 }
 
 func main() {

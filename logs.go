@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -24,49 +25,66 @@ type LoggableResource struct {
 
 // GetFetchLogsTasks sends tasks to fetch current and previous logs of all
 // resources in all projects.
-func GetFetchLogsTasks(tasks chan<- Task, runner Runner, projects, resources []string) {
-	loggableResources, err := GetLogabbleResources(projects, resources)
-	if err != nil {
-		tasks <- NewError(err)
-		// continue and iterate over loggableResources even if there was
-		// an error.
-	}
-	for _, r := range loggableResources {
-		// Send task to fetch current logs.
-		tasks <- FetchLogs(runner, r, *maxLogLines)
-		// Send task to fetch previous logs.
-		tasks <- FetchPreviousLogs(runner, r, *maxLogLines)
-	}
-}
-
-// GetLogabbleResources returns a list of loggable resources. It may return
-// results even in the presence of an error.
-func GetLogabbleResources(projects, resources []string) ([]LoggableResource, error) {
-	var (
-		loggableResources []LoggableResource
-		errors            errorList
-	)
+func GetFetchLogsTasks(tasks chan<- Task, runner Runner, projects, resources []string, maxLines int) {
 	for _, p := range projects {
 		for _, rtype := range resources {
-			names, err := GetResourceNames(p, rtype)
+			names, err := GetResourceNames(runner, p, rtype)
 			if err != nil {
-				errors = append(errors, err)
+				tasks <- NewError(err)
 				continue
 			}
 			for _, name := range names {
-				resources, err := GetLoggableResources(p, rtype, name)
-				if err != nil {
-					errors = append(errors, err)
-					continue
-				}
-				loggableResources = append(loggableResources, resources...)
+				getFetchLogsTasksPerResource(tasks, runner, p, rtype, name, maxLines)
 			}
 		}
 	}
-	if len(errors) > 0 {
-		return loggableResources, errors
+}
+
+// getFetchLogsTasksPerResource sends tasks to fetch current and previous logs
+// of the named resource of type rtype in the given project. Pod resources
+// produce tasks for each container in the pod.
+func getFetchLogsTasksPerResource(tasks chan<- Task, runner Runner, project, rtype, name string, maxLines int) {
+	var (
+		containers []string
+	)
+	switch rtype {
+	case "po", "pod", "pods":
+		var err error
+		containers, err = GetPodContainers(runner, project, name)
+		if err != nil {
+			tasks <- NewError(err)
+			return
+		}
+	default:
+		// For types other than pod, we can treat them as if
+		// they had a single unnamed container, for the name
+		// doesn't matter when fetching logs.
+		containers = []string{""}
 	}
-	return loggableResources, nil
+	for _, container := range containers {
+		r := LoggableResource{
+			Project:   project,
+			Type:      rtype,
+			Name:      name,
+			Container: container,
+		}
+		// Send task to fetch current logs.
+		tasks <- FetchLogs(runner, r, maxLines)
+		// Send task to fetch previous logs.
+		tasks <- FetchPreviousLogs(runner, r, maxLines)
+	}
+}
+
+// GetPodContainers returns a list of container names for the named pod in the
+// project.
+func GetPodContainers(runner Runner, project, name string) ([]string, error) {
+	cmd := exec.Command("oc", "-n", project, "get", "pod", name, "-o=jsonpath={.spec.containers[*].name}")
+	var b bytes.Buffer
+	cmd.Stdout = &b
+	if err := runner.Run(cmd, filepath.Join("projects", project, "pods", name, "container-names")); err != nil {
+		return nil, err
+	}
+	return readSpaceSeparated(&b)
 }
 
 // FetchLogs is a task factory for tasks that fetch the logs of a
@@ -105,47 +123,4 @@ func ocLogs(r Runner, resource LoggableResource, maxLines int, extraArgs []strin
 		path := filepath.Join("projects", resource.Project, what, filename+".logs")
 		return r.Run(cmd, path)
 	}
-}
-
-// GetLoggableResources returns a list of loggable resources for the named
-// resource of type rtype in the given project. Only pods may return multiple
-// loggable resources, as many as the number of containers in the pod.
-func GetLoggableResources(project, rtype, name string) ([]LoggableResource, error) {
-	return getLoggableResources(GetPodContainers, project, rtype, name)
-}
-
-func getLoggableResources(getPodContainers func(string, string) ([]string, error), project, rtype, name string) ([]LoggableResource, error) {
-	var (
-		loggableResources []LoggableResource
-		containers        []string
-	)
-	switch rtype {
-	case "po", "pod", "pods":
-		var err error
-		containers, err = getPodContainers(project, name)
-		if err != nil {
-			return nil, err
-		}
-	default:
-		// For types other than pod, we can treat them as if
-		// they had a single unnamed container, for the name
-		// doesn't matter when fetching logs.
-		containers = []string{""}
-	}
-	for _, container := range containers {
-		loggableResources = append(loggableResources,
-			LoggableResource{
-				Project:   project,
-				Type:      rtype,
-				Name:      name,
-				Container: container,
-			})
-	}
-	return loggableResources, nil
-}
-
-// GetPodContainers returns a list of container names for the named pod in the
-// project.
-func GetPodContainers(project, name string) ([]string, error) {
-	return getSpaceSeparated(exec.Command("oc", "-n", project, "get", "pod", name, "-o=jsonpath={.spec.containers[*].name}"))
 }

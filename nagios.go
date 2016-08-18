@@ -53,7 +53,9 @@ func GetNagiosHistoricalData(r Runner, project, pod string) Task {
 // getResourceNamesBySubstr returns a list of names for the provided resource type that contain
 // the provided string, in the provided project.
 func getResourceNamesBySubstr(project, resource, substr string) ([]string, error) {
-	resources, err := GetResourceNames(project, resource)
+	// FIXME: take runner as argument.
+	runner := simpleRunner{}
+	resources, err := GetResourceNames(runner, project, resource)
 	if err != nil {
 		return nil, err
 	}
