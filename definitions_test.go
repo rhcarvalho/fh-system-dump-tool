@@ -1,52 +1,46 @@
 package main
 
 import (
-	"bytes"
-	"fmt"
-	"io"
-	"io/ioutil"
-	"os/exec"
+	"path/filepath"
+	"reflect"
 	"testing"
 )
 
-func TestResourceDefinitions(t *testing.T) {
-	cmdFactory := func(project, resource string) *exec.Cmd {
-		return helperCommand("echo", fmt.Sprintf(`{"project": %q, "resource": %q}`, project, resource))
-	}
+func TestResourceDefinition(t *testing.T) {
 	tests := []struct {
-		project                string
-		types                  []string
-		wantStdout, wantStderr string
+		project  string
+		resource string
+		calls    []RunCall
 	}{
 		{
-			project: "test-project",
-			types:   []string{"svc", "pod", "dc"},
-			wantStdout: `{"project": "test-project", "resource": "svc"}
-{"project": "test-project", "resource": "pod"}
-{"project": "test-project", "resource": "dc"}
-`,
-			wantStderr: "",
+			project:  "test-project",
+			resource: "deploymentconfigs",
+			calls: []RunCall{
+				{
+					[]string{"oc", "-n", "test-project", "get", "deploymentconfigs", "-o=json"},
+					filepath.Join("projects", "test-project", "definitions", "deploymentconfigs.json"),
+				},
+			},
 		},
-		// TODO: Add tests involving error cases.
+		{
+			project:  "test-project",
+			resource: "svc/mongodb-1",
+			calls: []RunCall{
+				{
+					[]string{"oc", "-n", "test-project", "get", "svc/mongodb-1", "-o=json"},
+					filepath.Join("projects", "test-project", "definitions", "svc_mongodb-1.json"),
+				},
+			},
+		},
 	}
-	for _, tt := range tests {
-		var stdout, stderr bytes.Buffer
-		outFor := func(project, resource string) (io.Writer, io.Closer, error) {
-			return &stdout, ioutil.NopCloser(nil), nil
-		}
-		errOutFor := func(project, resource string) (io.Writer, io.Closer, error) {
-			return &stderr, ioutil.NopCloser(nil), nil
-		}
-		task := resourceDefinitions(cmdFactory, tt.project, tt.types, outFor, errOutFor)
-
+	for i, tt := range tests {
+		runner := &FakeRunner{}
+		task := ResourceDefinition(runner, tt.project, tt.resource)
 		if err := task(); err != nil {
-			t.Errorf("task failed: %v", err)
+			t.Errorf("test %d: task() = %v, want %v", i, err, nil)
 		}
-		if got := stdout.String(); got != tt.wantStdout {
-			t.Errorf("stdout = %q, want %q", got, tt.wantStdout)
-		}
-		if got := stderr.String(); got != tt.wantStderr {
-			t.Errorf("stderr = %q, want %q", got, tt.wantStderr)
+		if !reflect.DeepEqual(runner.Calls, tt.calls) {
+			t.Errorf("test %d: runner.Calls = %q, want %q", i, runner.Calls, tt.calls)
 		}
 	}
 }
