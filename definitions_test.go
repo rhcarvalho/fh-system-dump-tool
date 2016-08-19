@@ -32,6 +32,16 @@ func TestResourceDefinition(t *testing.T) {
 				},
 			},
 		},
+		{
+			project:  "",
+			resource: "persistentvolumes",
+			calls: []RunCall{
+				{
+					[]string{"oc", "get", "persistentvolumes", "-o=json"},
+					filepath.Join("definitions", "persistentvolumes.json"),
+				},
+			},
+		},
 	}
 	for i, tt := range tests {
 		runner := &FakeRunner{}
