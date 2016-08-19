@@ -50,6 +50,8 @@ func GetNagiosHistoricalData(r Runner, project, pod string) Task {
 	}
 }
 
+type ResourceMatchFactory func(project, resource, substr string) ([]string, error)
+
 // getResourceNamesBySubstr returns a list of names for the provided resource type that contain
 // the provided string, in the provided project.
 func getResourceNamesBySubstr(project, resource, substr string) ([]string, error) {

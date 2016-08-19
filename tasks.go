@@ -120,6 +120,12 @@ func GetAllTasks(runner Runner, basepath string) <-chan Task {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			GetMillicoreConfigTasks(tasks, runner, projects, getResourceNamesBySubstr)
+		}()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			tasks <- GetOcAdmDiagnosticsTask(runner)
 		}()
 
