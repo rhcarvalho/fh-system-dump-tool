@@ -90,6 +90,13 @@ func GetAllTasks(runner Runner, basepath string) <-chan Task {
 
 		var wg sync.WaitGroup
 
+		// Add tasks to fetch OpenShift metadata.
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			GetOpenShiftMetadataTasks(tasks, runner, projects)
+		}()
+
 		// Add tasks to fetch resource definitions.
 		wg.Add(1)
 		go func() {
