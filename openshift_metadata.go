@@ -14,6 +14,7 @@ func GetOpenShiftMetadataTasks(tasks chan<- Task, runner Runner, projects []stri
 		{"whoami"},
 		{"policy", "can-i", "list", "projects"},
 		{"policy", "can-i", "list", "persistentvolumes"},
+		{"policy", "can-i", "list", "nodes"},
 	}
 	for _, args := range argsList {
 		args := args

@@ -65,15 +65,6 @@ func RunAllTasks(runner Runner, path string, workers int) {
 // channel is closed after all tasks are sent.
 // FIXME: GetAllTasks should not need to know about basepath.
 func GetAllTasks(runner Runner, basepath string) <-chan Task {
-	var (
-		resources = []string{
-			"deploymentconfigs", "pods", "services", "events",
-			"persistentvolumeclaims",
-		}
-		// We should only care about logs for pods, because they cover
-		// all other possible types.
-		resourcesWithLogs = []string{"pods"}
-	)
 	tasks := make(chan Task)
 	go func() {
 		defer close(tasks)
@@ -101,17 +92,28 @@ func GetAllTasks(runner Runner, basepath string) <-chan Task {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+
+			resources := []string{
+				"deploymentconfigs", "pods", "services",
+				"events", "persistentvolumeclaims",
+			}
 			GetResourceDefinitionTasks(tasks, runner, projects, resources)
-			// Persistent volumes are cluster-scoped, so we need
-			// only one task to fetch all definitions, instead of
-			// one per project.
-			tasks <- ResourceDefinition(runner, "", "persistentvolumes")
+
+			// For cluster-scoped resources we need only one task to
+			// fetch all definitions, instead of one per project.
+			clusterScoped := []string{"persistentvolumes", "nodes"}
+			for _, resource := range clusterScoped {
+				tasks <- ResourceDefinition(runner, "", resource)
+			}
 		}()
 
 		// Add tasks to fetch logs.
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			// We should only care about logs for pods, because they
+			// cover all other possible types.
+			resourcesWithLogs := []string{"pods"}
 			// FIXME: we should not be accessing a flag value
 			// (global) here, instead take maxLines as an argument.
 			GetFetchLogsTasks(tasks, runner, projects, resourcesWithLogs, *maxLogLines)
