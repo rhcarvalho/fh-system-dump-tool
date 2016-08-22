@@ -1,18 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"errors"
-	"io"
-	"io/ioutil"
 	"testing"
 )
-
-var b *bytes.Buffer
-
-func mockOutFor(project, resource string) (io.Writer, io.Closer, error) {
-	return b, ioutil.NopCloser(nil), nil
-}
 
 func mockCheckFactoryOnePassOneFail() []CheckTask {
 	return []CheckTask{mockTestOne, mockTestTwo}
@@ -21,42 +12,46 @@ func mockCheckFactoryOnePass() []CheckTask {
 	return []CheckTask{mockTestOne}
 }
 
-func mockTestOne(project string, stdErr io.Writer) (Result, error) {
+func mockTestOne(project, basepath string) (Result, error) {
 	result := Result{StatusMessage: "Called mockTestOne"}
 	return result, nil
-
 }
 
-func mockTestTwo(project string, stdErr io.Writer) (Result, error) {
+func mockTestTwo(project, basepath string) (Result, error) {
 	result := Result{StatusMessage: "Called mockTestTwo"}
 	return result, errors.New("FAIL")
 }
 
-func TestCheckTasks(t *testing.T) {
-	b = bytes.NewBuffer([]byte{})
-	task := checkTasks(mockCheckFactoryOnePassOneFail, "MockProject", mockOutFor, mockOutFor)
+func TestCheckTasksWithFail(t *testing.T) {
+	results := make(chan CheckResults, 1)
+	defer close(results)
+	task := checkProjectTask(mockCheckFactoryOnePassOneFail, "MockProject", "/", results)
+
 	err := task()
 
 	if err == nil {
 		t.Fatal("Expected error")
 	}
 
-	if len(string(b.Bytes())) == 0 {
-		t.Fatal("Tests not called")
-
+	result := <-results
+	if (len(result.Results)) != 2 {
+		t.Fatal("Expected 2 check results, got: " + string(len(result.Results)))
 	}
+}
 
-	b = bytes.NewBuffer([]byte{})
-	task = checkTasks(mockCheckFactoryOnePass, "MockProject", mockOutFor, mockOutFor)
-	err = task()
+func TestCheckTasksWithPass(t *testing.T) {
+	results := make(chan CheckResults, 1)
+	defer close(results)
+	task := checkProjectTask(mockCheckFactoryOnePass, "MockProject", "/", results)
+
+	err := task()
 
 	if err != nil {
-		t.Fatal("Expected no errors")
+		t.Fatal("Expected no error, got:", err)
 	}
 
-	if len(string(b.Bytes())) == 0 {
-		t.Fatal("Tests not called")
-
+	result := <-results
+	if (len(result.Results)) != 1 {
+		t.Fatal("Expected 1 check results, got: " + string(len(result.Results)))
 	}
-
 }

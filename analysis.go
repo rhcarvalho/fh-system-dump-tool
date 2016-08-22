@@ -3,9 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
-	"io"
 	"io/ioutil"
+	"path/filepath"
 	"strings"
 )
 
@@ -50,60 +49,51 @@ type DeploymentConfigs struct {
 	} `json:"items"`
 }
 
-type CheckTask func(string, io.Writer) (Result, error)
+type CheckTask func(string, string) (Result, error)
+
+func GetAnalysisTasks(tasks chan<- Task, basepath string, projects []string, results chan<- CheckResults) {
+	// Platform-wide analysis goes here
+
+	// project specific analysis in here
+	for _, p := range projects {
+		tasks <- CheckProjectTask(p, basepath, results)
+	}
+}
 
 // CheckTasks is a task factory for tasks that diagnose system conditions.
-func CheckTasks(project string, outFor, errOutFor projectResourceWriterCloserFactory) Task {
-	return checkTasks(func() []CheckTask {
+func CheckProjectTask(project, basepath string, results chan<- CheckResults) Task {
+	return checkProjectTask(func() []CheckTask {
 		return []CheckTask{CheckImagePullBackOff, CheckDeployConfigsReplicasNotZero}
-	}, project, outFor, errOutFor)
+	}, project, basepath, results)
 }
 
 // A getProjectCheckFactory generates tasks to diagnose system conditions.
 type getProjectCheckFactory func() []CheckTask
 
 type CheckResults struct {
+	Scope   string `json:"scope"`
 	Results []Result
 }
 
 // checkTasks executes all the CheckTasks returned from the supplied
 // checkFactory against the specified project. The results of the checks are
-// combined into a single JSON object and written to the writer returned from
-// outFor, any errors that occur during the test are written to the writer
-// returned from errOutFor.
-func checkTasks(checkFactory getProjectCheckFactory, project string, outFor, errOutFor projectResourceWriterCloserFactory) Task {
+// combined into a single JSON object and returned
+func checkProjectTask(checkFactory getProjectCheckFactory, project, basepath string, results chan<- CheckResults) Task {
 	return func() error {
-		stdOut, stdOutCloser, err := outFor(project, "analysis")
-		if err != nil {
-			return err
-		}
-		defer stdOutCloser.Close()
-		stdErr, stdErrCloser, err := errOutFor(project, "analysis")
-		if err != nil {
-			return err
-		}
-		defer stdErrCloser.Close()
-
-		results := CheckResults{Results: []Result{}}
-
+		result := CheckResults{Scope: project, Results: []Result{}}
 		checks := checkFactory()
 
 		var errors errorList
 		for _, check := range checks {
-			res, err := check(project, stdErr)
+			res, err := check(project, basepath)
 			if err != nil {
 				errors = append(errors, err)
 			}
-			results.Results = append(results.Results, res)
+			result.Results = append(result.Results, res)
 
 		}
 
-		output, err := json.MarshalIndent(results, "", "    ")
-		if err != nil {
-			errors = append(errors, err)
-		}
-
-		stdOut.Write(output)
+		results <- result
 
 		if len(errors) > 0 {
 			return errors
@@ -112,33 +102,15 @@ func checkTasks(checkFactory getProjectCheckFactory, project string, outFor, err
 	}
 }
 
-// getResourceStruct retrieves the requested resource in the supplied project
-// from the platform and parse the JSON into the supplied interface.
-func getResourceStruct(project, resource string, dest interface{}) error {
-	stdOut := bytes.NewBuffer([]byte{})
-	stdErr := bytes.NewBuffer([]byte{})
-	outFor := func(project, resource string) (io.Writer, io.Closer, error) {
-		return stdOut, ioutil.NopCloser(nil), nil
-	}
-	errOutFor := func(project, resource string) (io.Writer, io.Closer, error) {
-		return stdErr, ioutil.NopCloser(nil), nil
-	}
-	task := ResourceDefinitions(project, []string{resource}, outFor, errOutFor)
+// getDumpedResourceAsStruct retrieves the requested resource from the dump directory and
+// decodes the JSON into the provided interface
+func getDumpedResource(path []string, dest interface{}) error {
+	filePath := filepath.Join(path...)
+	contents, err := ioutil.ReadFile(filePath)
 
-	err := task()
-	if err != nil {
-		return err
-	}
-
-	stdErrString := string(stdErr.Bytes())
-	if stdErrString != "" {
-		return errors.New(stdErrString)
-	}
-
-	decoder := json.NewDecoder(stdOut)
+	decoder := json.NewDecoder(bytes.NewBuffer(contents))
 	err = decoder.Decode(&dest)
 	if err != nil {
-		stdErr.Write([]byte(err.Error()))
 		return err
 	}
 
@@ -149,12 +121,13 @@ func getResourceStruct(project, resource string, dest interface{}) error {
 // are exhibiting signs that they have experienced an ImagePullBackOff recently
 // this will be reflected in the returned Result data. Any errors are written to
 // the supplied stdErr writer.
-func CheckImagePullBackOff(project string, stdErr io.Writer) (Result, error) {
+func CheckImagePullBackOff(project, basepath string) (Result, error) {
 	result := Result{Status: 0, StatusMessage: "this issue was not detected", CheckName: "check deploys for ImagePullBackOff error"}
 	events := Events{}
-	err := getResourceStruct(project, "events", &events)
+	err := getDumpedResource([]string{basepath, "projects", project, "definitions", "events.json"}, &events)
 	if err != nil {
-		stdErr.Write([]byte(err.Error()))
+		result.Status = 2
+		result.StatusMessage = "Error executing task"
 		return result, err
 	}
 
@@ -174,12 +147,13 @@ func CheckImagePullBackOff(project string, stdErr io.Writer) (Result, error) {
 // supplied project and if any have replicas set to zero this will be reflected
 // in the returned Result data. Any errors are written to the supplied stdErr
 // writer.
-func CheckDeployConfigsReplicasNotZero(project string, stdErr io.Writer) (Result, error) {
+func CheckDeployConfigsReplicasNotZero(project, basepath string) (Result, error) {
 	result := Result{Status: 0, StatusMessage: "this issue was not detected", CheckName: "check deployconfig replicas not 0"}
 	deploymentConfigs := DeploymentConfigs{}
-	err := getResourceStruct(project, "dc", &deploymentConfigs)
+	err := getDumpedResource([]string{basepath, "projects", project, "definitions", "deploymentconfigs.json"}, &deploymentConfigs)
 	if err != nil {
-		stdErr.Write([]byte(err.Error()))
+		result.Status = 2
+		result.StatusMessage = "Error executing task"
 		return result, err
 	}
 

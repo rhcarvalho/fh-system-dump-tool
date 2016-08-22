@@ -27,3 +27,7 @@ func outToFile(basepath, extension, scope string) projectResourceWriterCloserFac
 		return f, f, nil
 	}
 }
+
+// A pathResourceWriterFactory generates io.Writers for dumping data of a
+// particular resource type within a project.
+type pathResourceWriterCloserFactory func() (io.Writer, io.Closer, error)
