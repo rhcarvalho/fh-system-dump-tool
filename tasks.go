@@ -1,10 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -12,12 +15,12 @@ import (
 // A Task performs some part of the RHMAP System Dump Tool.
 type Task func() error
 
-// RunAllTasks runs all tasks known to the dump tool using concurrent workers.
+// RunAllDumpTasks runs all tasks known to the dump tool using concurrent workers.
 // Dump output goes to path.
-func RunAllTasks(runner Runner, path string, workers int) {
+func RunAllDumpTasks(runner Runner, path string, workers int) {
 	start := time.Now()
 
-	tasks := GetAllTasks(runner, path)
+	tasks := GetAllDumpTasks(runner, path)
 	results := make(chan error)
 
 	// Start worker goroutines to run tasks concurrently.
@@ -57,14 +60,14 @@ func RunAllTasks(runner Runner, path string, workers int) {
 	delta := time.Since(start)
 	// Remove sub-second precision.
 	delta -= delta % time.Second
-	log.Printf("Run %d tasks in %v.", taskCount, delta)
+	log.Printf("Run %d dump tasks in %v.", taskCount, delta)
 }
 
-// GetAllTasks returns a channel of all tasks known to the dump tool. It returns
+// GetAllDumpTasks returns a channel of all tasks known to the dump tool. It returns
 // immediately and sends tasks to the channel in a separate goroutine. The
 // channel is closed after all tasks are sent.
-// FIXME: GetAllTasks should not need to know about basepath.
-func GetAllTasks(runner Runner, basepath string) <-chan Task {
+// FIXME: GetAllDumpTasks should not need to know about basepath.
+func GetAllDumpTasks(runner Runner, basepath string) <-chan Task {
 	tasks := make(chan Task)
 	go func() {
 		defer close(tasks)
@@ -137,19 +140,96 @@ func GetAllTasks(runner Runner, basepath string) <-chan Task {
 			defer wg.Done()
 			tasks <- GetOcAdmDiagnosticsTask(runner)
 		}()
-
 		wg.Wait()
+	}()
+	return tasks
+}
 
-		// After all other tasks are done, add analysis tasks. We want
-		// to run them strictly later so that they can leverage the
-		// output of commands executed previously by other tasks, e.g.,
-		// reading resource definitions.
-		for _, p := range projects {
-			outFor := outToFile(basepath, "json", "analysis")
-			errOutFor := outToFile(basepath, "stderr", "analysis")
-			tasks <- CheckTasks(p, outFor, errOutFor)
+func RunAllAnalysisTasks(runner Runner, path string, workers int) {
+	start := time.Now()
+
+	checkResults := make(chan CheckResults)
+	tasks := GetAllAnalysisTasks(runner, path, checkResults)
+	results := make(chan error)
+
+	// Start worker goroutines to run tasks concurrently.
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			for task := range tasks {
+				results <- task()
+			}
+		}()
+	}
+
+	// Listen to the checkResults channel and write all the results into
+	// the analysis.json file
+	go func() {
+		analysisResults := map[string][]Result{}
+		filepath := filepath.Join(path, "analysis.json")
+		err := os.MkdirAll(path, 0770)
+		if err != nil {
+			results <- err
+			return
+		}
+
+		for result := range checkResults {
+			analysisResults[result.Scope] = result.Results
+			output, err := json.MarshalIndent(analysisResults, "", "    ")
+			if err != nil {
+				results <- err
+			}
+			ioutil.WriteFile(filepath, []byte(output), 0644)
 		}
 	}()
+
+	// Wait for all workers to terminate, then close the results channel to
+	// communicate that no more results will be sent.
+	go func() {
+		wg.Wait()
+		close(checkResults)
+		close(results)
+	}()
+
+	taskCount := 0
+
+	// Loop through the task execution results and log errors.
+	for err := range results {
+		taskCount++
+		if err != nil {
+			// TODO: there should be a way to identify which task
+			// had an error.
+			fmt.Fprintln(os.Stderr)
+			log.Printf("Task error: %v", err)
+			continue
+		}
+		fmt.Fprint(os.Stderr, ".")
+	}
+	fmt.Fprintln(os.Stderr)
+
+	delta := time.Since(start)
+	// Remove sub-second precision.
+	delta -= delta % time.Second
+	log.Printf("Run %d analysis tasks in %v.", taskCount, delta)
+}
+
+func GetAllAnalysisTasks(runner Runner, path string, results chan<- CheckResults) <-chan Task {
+	tasks := make(chan Task)
+	go func() {
+		defer close(tasks)
+
+		projects, err := GetProjects(runner)
+		if err != nil {
+			tasks <- NewError(err)
+			return
+		}
+
+		GetAnalysisTasks(tasks, path, projects, results)
+
+	}()
+
 	return tasks
 }
 
