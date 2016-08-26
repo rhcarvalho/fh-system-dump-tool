@@ -180,7 +180,7 @@ func main() {
 		cmd.Stdout = &stdout
 		cmd.Stderr = &stderr
 		if err := cmd.Run(); err != nil {
-			log.Printf("Dumped system information to: %s", basePath)
+			log.Printf("There was an error creating archiving the dumped data, so the dumped system information is stored unarchived in: %s", basePath)
 			return
 		}
 
