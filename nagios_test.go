@@ -30,7 +30,7 @@ func TestGetNagiosStatusData(t *testing.T) {
 			pod:     "pod",
 			calls: []RunCall{
 				{
-					[]string{"oc", "exec", "pod", "--", "cat", "/var/log/nagios/status.dat"},
+					[]string{"oc", "-n", "test-project", "exec", "pod", "--", "cat", "/var/log/nagios/status.dat"},
 					filepath.Join("projects", "test-project", "nagios", "pod_status.dat"),
 				},
 			},
@@ -58,7 +58,7 @@ func TestGetNagiosHistoricalData(t *testing.T) {
 			pod:     "pod",
 			calls: []RunCall{
 				{
-					[]string{"oc", "exec", "pod", "--", "tar", "-c", "-C", "/var/log/nagios", "archives"},
+					[]string{"oc", "-n", "test-project", "exec", "pod", "--", "tar", "-c", "-C", "/var/log/nagios", "archives"},
 					filepath.Join("projects", "test-project", "nagios", "pod_history.tar"),
 				},
 			},
