@@ -62,6 +62,14 @@ func TestCheckTasksWithPass(t *testing.T) {
 	}
 }
 
+func mockJSONResourceErrorFactory(p []string, d interface{}) error {
+	return errors.New("mock error")
+}
+
+//
+// Tests and mocks for CheckEventLogForErrors
+//
+
 func mockEventLogWithWarningFactory(p []string, d interface{}) error {
 	contents := `{
 		"kind": "List",
@@ -110,6 +118,40 @@ func mockEventLogWithWarningFactory(p []string, d interface{}) error {
 	return nil
 }
 
+func TestCheckEventLogForErrors(t *testing.T) {
+	res, err := CheckEventLogForErrors(mockEventLogWithWarningFactory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Status != 1 {
+		t.Fatal("res.Status expected: 1, got:", res.Status)
+	}
+	if len(res.Events) != 1 {
+		t.Fatal("len(res.Events) expected: 1, got:", len(res.Events))
+	}
+	if res.Events[0].Count != 94215 {
+		t.Fatal("res.Events[0].Count expected: 94215, got:", string(res.Events[0].Count))
+	}
+	if res.Events[0].Type != "Warning" {
+		t.Fatal("res.Events[0].Type expected: 'Warning', got: '" + res.Events[0].Type + "'")
+	}
+	if res.Events[0].Reason != "FailedSync" {
+		t.Fatal("res.Events[0].Reason expected: 'FailedSync', got: '" + res.Events[0].Reason + "'")
+	}
+
+	res, err = CheckEventLogForErrors(mockJSONResourceErrorFactory)
+	if err == nil {
+		t.Fatal("CheckEventLogForErrors(mockJSONResourceErrorFactory) expected error, got none")
+	}
+	if res.Status != 2 {
+		t.Fatal("res.Status expected 2, got:", res.Status)
+	}
+}
+
+//
+// Tests and mocks for CheckDeployConfigsReplicasNotZero
+//
+
 func MockDeployConfigWithReplicaZero(p []string, d interface{}) error {
 	contents := `{
 		"kind": "List",
@@ -151,40 +193,6 @@ func MockDeployConfigWithReplicaZero(p []string, d interface{}) error {
 	return nil
 }
 
-func mockJSONResourceErrorFactory(p []string, d interface{}) error {
-	return errors.New("mock error")
-}
-
-func TestCheckEventLogForErrors(t *testing.T) {
-	res, err := CheckEventLogForErrors(mockEventLogWithWarningFactory)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.Status != 1 {
-		t.Fatal("res.Status expected: 1, got:", res.Status)
-	}
-	if len(res.Events) != 1 {
-		t.Fatal("len(res.Events) expected: 1, got:", len(res.Events))
-	}
-	if res.Events[0].Count != 94215 {
-		t.Fatal("res.Events[0].Count expected: 94215, got:", string(res.Events[0].Count))
-	}
-	if res.Events[0].Type != "Warning" {
-		t.Fatal("res.Events[0].Type expected: 'Warning', got: '" + res.Events[0].Type + "'")
-	}
-	if res.Events[0].Reason != "FailedSync" {
-		t.Fatal("res.Events[0].Reason expected: 'FailedSync', got: '" + res.Events[0].Reason + "'")
-	}
-
-	res, err = CheckEventLogForErrors(mockJSONResourceErrorFactory)
-	if err == nil {
-		t.Fatal("CheckEventLogForErrors(mockJSONResourceErrorFactory) expected error, got none")
-	}
-	if res.Status != 2 {
-		t.Fatal("res.Status expected 2, got:", res.Status)
-	}
-}
-
 func TestCheckDeployConfigsReplicasNotZero(t *testing.T) {
 	res, err := CheckDeployConfigsReplicasNotZero(MockDeployConfigWithReplicaZero)
 	if err != nil {
@@ -198,6 +206,132 @@ func TestCheckDeployConfigsReplicasNotZero(t *testing.T) {
 	}
 
 	res, err = CheckDeployConfigsReplicasNotZero(mockJSONResourceErrorFactory)
+	if err == nil {
+		t.Fatal("CheckDeployConfigsReplicasNotZero(mockJSONResourceErrorFactory) expected error, got none")
+	}
+	if res.Status != 2 {
+		t.Fatal("res.Status expected 2, got:", res.Status)
+	}
+}
+
+//
+// Tests and mocks for CheckForWaitingPods
+//
+
+func MockPodsWithWaitingPod(p []string, d interface{}) error {
+	contents := `{
+		"items": [
+			{
+				"metadata": {
+					"name": "mongodb-2-1-x66za",
+					"namespace": "qe-3node-4-1"
+				},
+				"status": {
+					"containerStatuses": [
+						{
+							"name": "mongodb-service",
+							"state": {
+								"waiting": {
+									"reason": "ContainerCreating",
+									"message": "Image: docker.io/rhmap/mongodb:centos-3.2-29 is ready, container is creating"
+								}
+							}
+						}
+					]
+				}
+			}
+		]
+	}`
+
+	decoder := json.NewDecoder(bytes.NewBuffer([]byte(contents)))
+	err := decoder.Decode(&d)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func MockPodsWithoutWaitingPod(p []string, d interface{}) error {
+	contents := `{
+		"items": [
+			{
+				"metadata": {
+					"name": "mongodb-2-1-x66za",
+					"namespace": "qe-3node-4-1"
+				},
+				"status": {
+					"containerStatuses": [
+						{
+							"name": "mongodb-service",
+							"state": {
+								"running": {
+									"startedAt": "2016-07-14T11:08:00Z"
+								}
+							}
+						}
+					]
+				}
+			}
+		]
+	}`
+
+	decoder := json.NewDecoder(bytes.NewBuffer([]byte(contents)))
+	err := decoder.Decode(&d)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func MockEmptyPods(p []string, d interface{}) error {
+	contents := `{
+		"items": [
+		]
+	}`
+
+	decoder := json.NewDecoder(bytes.NewBuffer([]byte(contents)))
+	err := decoder.Decode(&d)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func TestCheckForWaitingPods(t *testing.T) {
+	res, err := CheckForWaitingPods(MockPodsWithWaitingPod)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Status != 1 {
+		t.Fatal("res.Status expected: 1, got:", res.Status)
+	}
+	if res.Info[0].Count != 1 {
+		t.Fatal("res.Info[0].Count expected 1, got:" + string(res.Info[0].Count))
+	}
+
+	res, err = CheckForWaitingPods(MockPodsWithoutWaitingPod)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Status != 0 {
+		t.Fatal("res.Status expected: 0, got:", res.Status)
+	}
+	if len(res.Info) != 0 {
+		t.Fatal("len(res.Info) expected 0, got:" + string(len(res.Info)))
+	}
+
+	res, err = CheckForWaitingPods(MockEmptyPods)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Status != 0 {
+		t.Fatal("res.Status expected: 0, got:", res.Status)
+	}
+	if len(res.Info) != 0 {
+		t.Fatal("len(res.Info) expected 0, got:" + string(len(res.Info)))
+	}
+
+	res, err = CheckForWaitingPods(mockJSONResourceErrorFactory)
 	if err == nil {
 		t.Fatal("CheckDeployConfigsReplicasNotZero(mockJSONResourceErrorFactory) expected error, got none")
 	}

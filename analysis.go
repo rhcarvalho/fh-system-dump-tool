@@ -51,6 +51,28 @@ type DeploymentConfigs struct {
 	} `json:"items"`
 }
 
+type ContainerWaiting struct {
+	Reason  string `json:"reason"`
+	Message string `json:"message"`
+}
+
+type Pods struct {
+	Items []struct {
+		Metadata struct {
+			Name      string `json:"name"`
+			Namespace string `json:"namespace"`
+		} `json:"metadata"`
+		Status struct {
+			ContainerStatuses []struct {
+				Name  string `json:"name"`
+				State struct {
+					Waiting *ContainerWaiting `json:"waiting,omitempty"`
+				} `json:"state"`
+			} `json:"containerStatuses"`
+		} `json:"status"`
+	} `json:"items"`
+}
+
 type CheckTask func(DumpedJSONResourceFactory) (Result, error)
 
 func GetAnalysisTasks(tasks chan<- Task, basepath string, projects []string, results chan<- CheckResults) {
@@ -66,7 +88,7 @@ func GetAnalysisTasks(tasks chan<- Task, basepath string, projects []string, res
 // CheckTasks is a task factory for tasks that diagnose system conditions.
 func CheckProjectTask(project string, results chan<- CheckResults, JSONResourceFactory DumpedJSONResourceFactory) Task {
 	return checkProjectTask(func() []CheckTask {
-		return []CheckTask{CheckEventLogForErrors, CheckDeployConfigsReplicasNotZero}
+		return []CheckTask{CheckEventLogForErrors, CheckDeployConfigsReplicasNotZero, CheckForWaitingPods}
 	}, JSONResourceFactory, project, results)
 }
 
@@ -126,6 +148,31 @@ func getDumpedJSONResourceFactory(basepath []string) DumpedJSONResourceFactory {
 		return nil
 	}
 
+}
+
+// CheckForWaitingPods checks all pods for any containers in waiting status
+func CheckForWaitingPods(JSONResourceFactory DumpedJSONResourceFactory) (Result, error) {
+	result := Result{Status: 0, StatusMessage: "this issue was not detected", CheckName: "check pods for 'waiting' containers", Info: []Info{}, Events: []Event{}}
+	pods := Pods{}
+	if err := JSONResourceFactory([]string{"definitions", "pods.json"}, &pods); err != nil {
+		result.Status = 2
+		result.StatusMessage = "Error executing task: " + err.Error()
+		return result, err
+	}
+
+	for _, pod := range pods.Items {
+		for _, container := range pod.Status.ContainerStatuses {
+			if container.State.Waiting != nil {
+				result.Status = 1
+				result.StatusMessage = "Waiting containers have been detected"
+				msg := "container " + container.Name + " in pod " + pod.Metadata.Name + " is in waiting state"
+				info := Info{Name: container.Name, Count: 1, Namespace: pod.Metadata.Namespace, Kind: "container", Message: msg}
+				result.Info = append(result.Info, info)
+			}
+		}
+	}
+
+	return result, nil
 }
 
 // CheckEventLogForErrors checks all events in the supplied project and if any
