@@ -22,7 +22,7 @@ func TestGetMillicoreConfigTasks(t *testing.T) {
 	}
 	expectedCalls := []RunCall{
 		{
-			[]string{"oc", "exec", "millicore-1", "--", "cat", "/etc/feedhenry/cluster-override.properties"},
+			[]string{"oc", "-n", "project1", "exec", "millicore-1", "--", "cat", "/etc/feedhenry/cluster-override.properties"},
 			filepath.Join("projects", "project1", "millicore", "millicore-1_cluster-override.properties"),
 		},
 	}
