@@ -2,7 +2,7 @@ package main
 
 import "os/exec"
 
-// GetOcAdmDiagnosticsTasks sends tasks to fetch the oc adm diagnostics result.
+// GetOcAdmDiagnosticsTask sends tasks to fetch the oc adm diagnostics result.
 func GetOcAdmDiagnosticsTask(runner Runner) Task {
 	return func() error {
 		cmd := exec.Command("oc", "adm", "diagnostics")
