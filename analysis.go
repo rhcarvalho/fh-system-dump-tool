@@ -135,7 +135,6 @@ type DumpedJSONResourceFactory func([]string, interface{}) error
 // a given basepath. The factory parses the file contents as JSON and loads it
 // into the provided dest interface.
 func getDumpedJSONResourceFactory(basepath []string) DumpedJSONResourceFactory {
-
 	return func(path []string, dest interface{}) error {
 		file := filepath.Join(append(basepath, path...)...)
 		contents, err := os.Open(file)
@@ -148,7 +147,6 @@ func getDumpedJSONResourceFactory(basepath []string) DumpedJSONResourceFactory {
 		}
 		return nil
 	}
-
 }
 
 // CheckForWaitingPods checks all pods for any containers in waiting status
