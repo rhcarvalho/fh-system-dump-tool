@@ -98,7 +98,7 @@ func GetAllDumpTasks(runner Runner, basepath string) <-chan Task {
 
 			resources := []string{
 				"deploymentconfigs", "pods", "services",
-				"events", "persistentvolumeclaims",
+				"events", "persistentvolumeclaims", "configmaps",
 			}
 			GetResourceDefinitionTasks(tasks, runner, projects, resources)
 
