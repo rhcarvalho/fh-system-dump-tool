@@ -188,7 +188,6 @@ func main() {
 		// error from os.RemoveAll is intentionally ignored, since there
 		// is no useful action we can do, and we don't need to confuse
 		// the user with an error message.
-
 		os.RemoveAll(basePath)
 
 		log.Printf("Dumped system information to: %s", basePath+".tar.gz")
