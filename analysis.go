@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 )
 
+// Info is a piece of information regarding a check, multiple Info can be
+// attached to a single Result.
 type Info struct {
 	Name      string
 	Namespace string
@@ -14,6 +16,8 @@ type Info struct {
 	Message   string
 }
 
+// Result is a result of a single check, it can have multiple Event and Info
+// objects attached to it.
 type Result struct {
 	CheckName     string  `json:"checkName" yaml:"checkName"`
 	Status        int     `json:"status" yaml:"status"`
@@ -22,6 +26,14 @@ type Result struct {
 	Events        []Event `json:"events" yaml:"events"`
 }
 
+// Some of the types below are taken from:
+// https://github.com/openshift/origin/blob/master/vendor/k8s.io/kubernetes/pkg/api/types.go
+// However the fields that were not required for our purposes were removed for brevity.
+// Currently the copied definitions are:
+// - ContainerStateWaiting
+
+// Event is a representation of the items in the OpenShift event log, this is
+// trimmed to only the required fields.
 type Event struct {
 	Kind           string `json:"kind"`
 	InvolvedObject struct {
@@ -34,10 +46,13 @@ type Event struct {
 	Type    string `json:"type"`
 }
 
+// Events is a representation of everything in the OpenShift event log for a
+// particular project.
 type Events struct {
 	Items []Event `json:"items"`
 }
 
+// DeploymentConfigs is a representation of the OpenShift deployment configs.
 type DeploymentConfigs struct {
 	Items []struct {
 		Kind     string `json:"kind"`
@@ -51,11 +66,15 @@ type DeploymentConfigs struct {
 	} `json:"items"`
 }
 
-type ContainerWaiting struct {
-	Reason  string `json:"reason"`
-	Message string `json:"message"`
+// ContainerStateWaiting is one possible status that a container can be in.
+type ContainerStateWaiting struct {
+	// A brief CamelCase string indicating details about why the container is in waiting state.
+	Reason string `json:"reason,omitempty"`
+	// A human-readable message indicating details about why the container is in waiting state.
+	Message string `json:"message,omitempty"`
 }
 
+// Pods is a representation of all the pods in a project from OpenShift.
 type Pods struct {
 	Items []struct {
 		Metadata struct {
@@ -66,19 +85,22 @@ type Pods struct {
 			ContainerStatuses []struct {
 				Name  string `json:"name"`
 				State struct {
-					Waiting *ContainerWaiting `json:"waiting,omitempty"`
+					Waiting *ContainerStateWaiting `json:"waiting,omitempty"`
 				} `json:"state"`
 			} `json:"containerStatuses"`
 		} `json:"status"`
 	} `json:"items"`
 }
 
+// CheckTask is the interface which checks must implement.
 type CheckTask func(DumpedJSONResourceFactory) (Result, error)
 
+// GetAnalysisTasks creates all the analysis tasks and sends them one by one
+// down the tasks Channel.
 func GetAnalysisTasks(tasks chan<- Task, basepath string, projects []string, results chan<- CheckResults) {
-	// Platform-wide analysis goes here
+	// Platform-wide analysis goes here.
 
-	// project specific analysis in here
+	// project specific analysis in here.
 	for _, p := range projects {
 		JSONResourceFactory := getDumpedJSONResourceFactory([]string{basepath, "projects", p})
 		tasks <- CheckProjectTask(p, results, JSONResourceFactory)
@@ -95,6 +117,8 @@ func CheckProjectTask(project string, results chan<- CheckResults, JSONResourceF
 // A getProjectCheckFactory generates tasks to diagnose system conditions.
 type getProjectCheckFactory func() []CheckTask
 
+// CheckResults Stores the result of a check in a scope which can a specfic
+// project or platform-wide.
 type CheckResults struct {
 	Scope   string `json:"scope"`
 	Results []Result
@@ -102,7 +126,7 @@ type CheckResults struct {
 
 // checkTasks executes all the CheckTasks returned from the supplied
 // checkFactory against the specified project. The results of the checks are
-// combined into a single JSON object and returned
+// combined into a single JSON object and returned.
 func checkProjectTask(checkFactory getProjectCheckFactory, JSONResourceFactory DumpedJSONResourceFactory, project string, results chan<- CheckResults) Task {
 	return func() error {
 		result := CheckResults{Scope: project, Results: []Result{}}
@@ -149,7 +173,7 @@ func getDumpedJSONResourceFactory(basepath []string) DumpedJSONResourceFactory {
 	}
 }
 
-// CheckForWaitingPods checks all pods for any containers in waiting status
+// CheckForWaitingPods checks all pods for any containers in waiting status.
 func CheckForWaitingPods(JSONResourceFactory DumpedJSONResourceFactory) (Result, error) {
 	result := Result{Status: 0, StatusMessage: "this issue was not detected", CheckName: "check pods for 'waiting' containers", Info: []Info{}, Events: []Event{}}
 	pods := Pods{}
@@ -175,7 +199,8 @@ func CheckForWaitingPods(JSONResourceFactory DumpedJSONResourceFactory) (Result,
 }
 
 // CheckEventLogForErrors checks all events in the supplied project and if any
-// are not type 'Normal' (i.e. Warning or Error), it will add them to the returned results.
+// are not type 'Normal' (i.e. Warning or Error), it will add them to the
+// returned results.
 func CheckEventLogForErrors(JSONResourceFactory DumpedJSONResourceFactory) (Result, error) {
 	result := Result{Status: 0, StatusMessage: "this issue was not detected", CheckName: "check eventlog for any errors", Info: []Info{}, Events: []Event{}}
 	events := Events{}
@@ -196,9 +221,9 @@ func CheckEventLogForErrors(JSONResourceFactory DumpedJSONResourceFactory) (Resu
 	return result, nil
 }
 
-// CheckDeployConfigsReplicasNotZero checks all deployment configs in the supplied
-// JSON Resource Factory, and if any are found with a replica of 0, it will add a
-// note about it to the returned result
+// CheckDeployConfigsReplicasNotZero checks all deployment configs in the
+// supplied JSON Resource Factory, and if any are found with a replica of 0, it
+// will add a note about it to the returned result.
 func CheckDeployConfigsReplicasNotZero(ResourceFactory DumpedJSONResourceFactory) (Result, error) {
 	result := Result{Status: 0, StatusMessage: "this issue was not detected", CheckName: "check deployconfig replicas not 0", Info: []Info{}, Events: []Event{}}
 	deploymentConfigs := DeploymentConfigs{}

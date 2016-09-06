@@ -12,7 +12,7 @@ go build
 
 ## Runtime Prerequisites
 
-- Installation of [openshift-cli](https://docs.openshift.com/enterprise/3.2/cli_reference) for `oc` binary.
+- Installation of [OpenShift CLI](https://docs.openshift.com/enterprise/3.2/cli_reference) for `oc` binary.
 
 ## Running
 

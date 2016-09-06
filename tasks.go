@@ -145,6 +145,7 @@ func GetAllDumpTasks(runner Runner, basepath string) <-chan Task {
 	return tasks
 }
 
+// RunAllAnalysisTasks runs all tasks known to the analysis tool using concurrent workers.
 func RunAllAnalysisTasks(runner Runner, path string, workers int) {
 	start := time.Now()
 
@@ -215,7 +216,11 @@ func RunAllAnalysisTasks(runner Runner, path string, workers int) {
 	log.Printf("Run %d analysis tasks in %v.", taskCount, delta)
 }
 
-func GetAllAnalysisTasks(runner Runner, path string, results chan<- CheckResults) <-chan Task {
+// GetAllAnalysisTasks returns a channel of all the analysis tasks known to the dump tool. It returns
+// immediately and sends tasks to the channel in a separate goroutine. The channel is closed after
+// all tasks are sent.
+// FIXME: GetAllAnalysisTasks should not need to know about basepath.
+func GetAllAnalysisTasks(runner Runner, basepath string, results chan<- CheckResults) <-chan Task {
 	tasks := make(chan Task)
 	go func() {
 		defer close(tasks)
@@ -226,7 +231,7 @@ func GetAllAnalysisTasks(runner Runner, path string, results chan<- CheckResults
 			return
 		}
 
-		GetAnalysisTasks(tasks, path, projects, results)
+		GetAnalysisTasks(tasks, basepath, projects, results)
 
 	}()
 
