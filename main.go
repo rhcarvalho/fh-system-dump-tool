@@ -27,9 +27,6 @@ const (
 	// defaultMaxLogLines is the default limit of number of log lines to
 	// fetch.
 	defaultMaxLogLines = 1000
-
-	// The version of the fh-system-dump-tool
-	version = "0.1.0"
 )
 
 var (
@@ -138,7 +135,7 @@ func main() {
 	flag.Parse()
 
 	if *printVersion {
-		fmt.Println("RHMAP fh-system-dump-tool v" + version)
+		PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
 
@@ -156,7 +153,7 @@ func main() {
 		log.Fatalln("Error:", err)
 	}
 
-	if err := ioutil.WriteFile(filepath.Join(basePath, ".version"), []byte(version), 0660); err != nil {
+	if err := ioutil.WriteFile(filepath.Join(basePath, ".version"), []byte(Version), 0660); err != nil {
 		log.Fatalln("Error:", err)
 	}
 

@@ -4,10 +4,12 @@ This repository contains the system dump tool for the RHMAP On-Prem product.
 
 ## Building
 
-Building requires Go 1.6.
+Building requires Go 1.6 or later. The code can be built using the standard Go
+tools, `go build`, `go install` and `go get`. However, use `make` for release
+binaries that include version information:
 
 ```
-go build
+make
 ```
 
 ## Runtime Prerequisites
@@ -56,10 +58,9 @@ Update the function `CheckTasks` to also return your new check function.
 
 ## Releasing
 
-* Clone the repo locally
-* Bump the version in `main.go`
-* Do a `go build`
+* Tag a new version, e.g., `v0.1.0`
 * Create a new __Release__ from the [releases](https://github.com/feedhenry/fh-system-dump-tool/releases) page
-* Add some info about the release, including the version as a tag e.g. `v0.1.0`
+* Add some info about the release
+* Build a release binary using `make`
 * Upload the built binary
 * Publish it
