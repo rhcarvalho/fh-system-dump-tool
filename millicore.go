@@ -5,6 +5,10 @@ import (
 	"path/filepath"
 )
 
+// GetMillicoreConfigTasks will create a function matching the CheckTask
+// interface for each project to retrieve the Millicore config in that
+// property, if the pod exists. The created tasks are sent down the tasks
+// channel.
 func GetMillicoreConfigTasks(tasks chan<- Task, runner Runner, projects []string, resourceFactory ResourceMatchFactory) {
 	for _, p := range projects {
 		pods, err := resourceFactory(p, "pod", "millicore")
@@ -18,6 +22,8 @@ func GetMillicoreConfigTasks(tasks chan<- Task, runner Runner, projects []string
 	}
 }
 
+// GetMillicoreConfig will retrieve the Millicore config from the Millicore
+// container inside the provided pod and project.
 func GetMillicoreConfig(r Runner, project, pod string) Task {
 	return func() error {
 		cmd := exec.Command("oc", "-n", project, "exec", pod, "--", "cat", "/etc/feedhenry/cluster-override.properties")
