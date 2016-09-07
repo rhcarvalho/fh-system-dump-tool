@@ -153,7 +153,9 @@ func main() {
 		log.Fatalln("Error:", err)
 	}
 
-	if err := ioutil.WriteFile(filepath.Join(basePath, ".version"), []byte(Version), 0660); err != nil {
+	var b bytes.Buffer
+	PrintVersion(&b)
+	if err := ioutil.WriteFile(filepath.Join(basePath, ".version"), b.Bytes(), 0660); err != nil {
 		log.Fatalln("Error:", err)
 	}
 
