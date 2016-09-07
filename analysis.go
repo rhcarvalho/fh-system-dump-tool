@@ -2,8 +2,14 @@ package main
 
 import (
 	"encoding/json"
-	"os"
+	"io/ioutil"
 	"path/filepath"
+)
+
+const (
+	analysisErrorNotDiscovered = iota
+	analysisErrorReadingDumpedResource
+	analysisErrorDiscoveredByAnalysis
 )
 
 // Info is a piece of information regarding a check, multiple Info can be
@@ -95,6 +101,9 @@ type Pods struct {
 // CheckTask is the interface which checks must implement.
 type CheckTask func(DumpedJSONResourceFactory) (Result, error)
 
+// AnalysisResults is a representation of the JSON analysis results file.
+type AnalysisResults map[string]map[string][]Result
+
 // GetAnalysisTasks creates all the analysis tasks and sends them one by one
 // down the tasks Channel.
 func GetAnalysisTasks(tasks chan<- Task, basepath string, projects []string, results chan<- CheckResults) {
@@ -102,7 +111,7 @@ func GetAnalysisTasks(tasks chan<- Task, basepath string, projects []string, res
 
 	// project specific analysis in here.
 	for _, p := range projects {
-		JSONResourceFactory := getDumpedJSONResourceFactory([]string{basepath, "projects", p})
+		JSONResourceFactory := getDumpedJSONResourceFactory(filepath.Join(basepath, "projects", p))
 		tasks <- CheckProjectTask(p, results, JSONResourceFactory)
 	}
 }
@@ -121,6 +130,7 @@ type getProjectCheckFactory func() []CheckTask
 // project or platform-wide.
 type CheckResults struct {
 	Scope   string `json:"scope"`
+	Name    string `json:"name,omitempty"`
 	Results []Result
 }
 
@@ -129,7 +139,7 @@ type CheckResults struct {
 // combined into a single JSON object and returned.
 func checkProjectTask(checkFactory getProjectCheckFactory, JSONResourceFactory DumpedJSONResourceFactory, project string, results chan<- CheckResults) Task {
 	return func() error {
-		result := CheckResults{Scope: project, Results: []Result{}}
+		result := CheckResults{Scope: "project", Name: project, Results: []Result{}}
 		checks := checkFactory()
 
 		var errors errorList
@@ -151,34 +161,29 @@ func checkProjectTask(checkFactory getProjectCheckFactory, JSONResourceFactory D
 	}
 }
 
-// DumpedJSONResourceFactory takes an array of strings describing the path to a
+// DumpedJSONResourceFactory takes a string containing the path to a
 // JSON file which will be parsed and loaded into the supplied interface.
-type DumpedJSONResourceFactory func([]string, interface{}) error
+type DumpedJSONResourceFactory func(string, interface{}) error
 
 // getDumpedJSONResourceFactory returns a factory which will load resource from
 // a given basepath. The factory parses the file contents as JSON and loads it
 // into the provided dest interface.
-func getDumpedJSONResourceFactory(basepath []string) DumpedJSONResourceFactory {
-	return func(path []string, dest interface{}) error {
-		file := filepath.Join(append(basepath, path...)...)
-		contents, err := os.Open(file)
+func getDumpedJSONResourceFactory(basepath string) DumpedJSONResourceFactory {
+	return func(path string, dest interface{}) error {
+		contents, err := ioutil.ReadFile(filepath.Join(basepath, path))
 		if err != nil {
 			return err
 		}
-		decoder := json.NewDecoder(contents)
-		if err := decoder.Decode(&dest); err != nil {
-			return err
-		}
-		return nil
+		return json.Unmarshal(contents, dest)
 	}
 }
 
 // CheckForWaitingPods checks all pods for any containers in waiting status.
 func CheckForWaitingPods(JSONResourceFactory DumpedJSONResourceFactory) (Result, error) {
-	result := Result{Status: 0, StatusMessage: "this issue was not detected", CheckName: "check pods for 'waiting' containers", Info: []Info{}, Events: []Event{}}
+	result := Result{Status: analysisErrorNotDiscovered, StatusMessage: "this issue was not detected", CheckName: "check pods for 'waiting' containers", Info: []Info{}, Events: []Event{}}
 	pods := Pods{}
-	if err := JSONResourceFactory([]string{"definitions", "pods.json"}, &pods); err != nil {
-		result.Status = 2
+	if err := JSONResourceFactory(filepath.Join("definitions", "pods.json"), &pods); err != nil {
+		result.Status = analysisErrorReadingDumpedResource
 		result.StatusMessage = "Error executing task: " + err.Error()
 		return result, err
 	}
@@ -186,7 +191,7 @@ func CheckForWaitingPods(JSONResourceFactory DumpedJSONResourceFactory) (Result,
 	for _, pod := range pods.Items {
 		for _, container := range pod.Status.ContainerStatuses {
 			if container.State.Waiting != nil {
-				result.Status = 1
+				result.Status = analysisErrorDiscoveredByAnalysis
 				result.StatusMessage = "Waiting containers have been detected"
 				msg := "container " + container.Name + " in pod " + pod.Metadata.Name + " is in waiting state"
 				info := Info{Name: container.Name, Count: 1, Namespace: pod.Metadata.Namespace, Kind: "container", Message: msg}
@@ -202,17 +207,17 @@ func CheckForWaitingPods(JSONResourceFactory DumpedJSONResourceFactory) (Result,
 // are not type 'Normal' (i.e. Warning or Error), it will add them to the
 // returned results.
 func CheckEventLogForErrors(JSONResourceFactory DumpedJSONResourceFactory) (Result, error) {
-	result := Result{Status: 0, StatusMessage: "this issue was not detected", CheckName: "check eventlog for any errors", Info: []Info{}, Events: []Event{}}
+	result := Result{Status: analysisErrorNotDiscovered, StatusMessage: "this issue was not detected", CheckName: "check eventlog for any errors", Info: []Info{}, Events: []Event{}}
 	events := Events{}
-	if err := JSONResourceFactory([]string{"definitions", "events.json"}, &events); err != nil {
-		result.Status = 2
-		result.StatusMessage = "Error executing task"
+	if err := JSONResourceFactory(filepath.Join("definitions", "events.json"), &events); err != nil {
+		result.Status = analysisErrorReadingDumpedResource
+		result.StatusMessage = "Error executing task: " + err.Error()
 		return result, err
 	}
 
 	for _, event := range events.Items {
 		if event.Type != "Normal" {
-			result.Status = 1
+			result.Status = analysisErrorDiscoveredByAnalysis
 			result.StatusMessage = "Errors detected in event log"
 			result.Events = append(result.Events, event)
 		}
@@ -225,19 +230,19 @@ func CheckEventLogForErrors(JSONResourceFactory DumpedJSONResourceFactory) (Resu
 // supplied JSON Resource Factory, and if any are found with a replica of 0, it
 // will add a note about it to the returned result.
 func CheckDeployConfigsReplicasNotZero(ResourceFactory DumpedJSONResourceFactory) (Result, error) {
-	result := Result{Status: 0, StatusMessage: "this issue was not detected", CheckName: "check deployconfig replicas not 0", Info: []Info{}, Events: []Event{}}
+	result := Result{Status: analysisErrorNotDiscovered, StatusMessage: "this issue was not detected", CheckName: "check deployconfig replicas not 0", Info: []Info{}, Events: []Event{}}
 	deploymentConfigs := DeploymentConfigs{}
-	err := ResourceFactory([]string{"definitions", "deploymentconfigs.json"}, &deploymentConfigs)
+	err := ResourceFactory(filepath.Join("definitions", "deploymentconfigs.json"), &deploymentConfigs)
 	if err != nil {
-		result.Status = 2
-		result.StatusMessage = "Error executing task"
+		result.Status = analysisErrorReadingDumpedResource
+		result.StatusMessage = "Error executing task: " + err.Error()
 		return result, err
 	}
 
 	for _, deploymentConfig := range deploymentConfigs.Items {
 		if deploymentConfig.Spec.Replicas == 0 {
 			info := Info{Name: deploymentConfig.Metadata.Name, Namespace: deploymentConfig.Metadata.Namespace, Kind: deploymentConfig.Kind, Count: 1, Message: "the replica parameter is set to 0, this should be greater than 0"}
-			result.Status = 1
+			result.Status = analysisErrorDiscoveredByAnalysis
 			result.StatusMessage = "one or more deployConfig replicas are set to 0"
 			result.Info = append(result.Info, info)
 		}

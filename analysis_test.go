@@ -14,7 +14,7 @@ func mockCheckFactoryOnePass() []CheckTask {
 	return []CheckTask{mockTestOne}
 }
 
-func mockJSONResourceFactory(p []string, d interface{}) error {
+func mockJSONResourceFactory(p string, d interface{}) error {
 	return nil
 }
 
@@ -62,7 +62,7 @@ func TestCheckTasksWithPass(t *testing.T) {
 	}
 }
 
-func mockJSONResourceErrorFactory(p []string, d interface{}) error {
+func mockJSONResourceErrorFactory(p string, d interface{}) error {
 	return errors.New("mock error")
 }
 
@@ -70,7 +70,7 @@ func mockJSONResourceErrorFactory(p []string, d interface{}) error {
 // Tests and mocks for CheckEventLogForErrors
 //
 
-func mockEventLogWithWarningFactory(p []string, d interface{}) error {
+func mockEventLogWithWarningFactory(p string, d interface{}) error {
 	contents := `{
 		"kind": "List",
 		"apiVersion": "v1",
@@ -123,8 +123,8 @@ func TestCheckEventLogForErrors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Status != 1 {
-		t.Fatal("res.Status expected: 1, got:", res.Status)
+	if res.Status != analysisErrorDiscoveredByAnalysis {
+		t.Fatal("res.Status expected:", analysisErrorDiscoveredByAnalysis, "got:", res.Status)
 	}
 	if len(res.Events) != 1 {
 		t.Fatal("len(res.Events) expected: 1, got:", len(res.Events))
@@ -143,8 +143,8 @@ func TestCheckEventLogForErrors(t *testing.T) {
 	if err == nil {
 		t.Fatal("CheckEventLogForErrors(mockJSONResourceErrorFactory) expected error, got none")
 	}
-	if res.Status != 2 {
-		t.Fatal("res.Status expected 2, got:", res.Status)
+	if res.Status != analysisErrorReadingDumpedResource {
+		t.Fatal("res.Status expected:", analysisErrorReadingDumpedResource, "got:", res.Status)
 	}
 }
 
@@ -152,7 +152,7 @@ func TestCheckEventLogForErrors(t *testing.T) {
 // Tests and mocks for CheckDeployConfigsReplicasNotZero
 //
 
-func MockDeployConfigWithReplicaZero(p []string, d interface{}) error {
+func MockDeployConfigWithReplicaZero(p string, d interface{}) error {
 	contents := `{
 		"kind": "List",
 		"apiVersion": "v1",
@@ -198,8 +198,8 @@ func TestCheckDeployConfigsReplicasNotZero(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Status != 1 {
-		t.Fatal("res.Status expected: 1, got:", res.Status)
+	if res.Status != analysisErrorDiscoveredByAnalysis {
+		t.Fatal("res.Status expected:", analysisErrorDiscoveredByAnalysis, "got:", res.Status)
 	}
 	if res.Info[0].Count != 1 {
 		t.Fatal("res.Info[0].Count expected 1, got:" + string(res.Info[0].Count))
@@ -209,8 +209,8 @@ func TestCheckDeployConfigsReplicasNotZero(t *testing.T) {
 	if err == nil {
 		t.Fatal("CheckDeployConfigsReplicasNotZero(mockJSONResourceErrorFactory) expected error, got none")
 	}
-	if res.Status != 2 {
-		t.Fatal("res.Status expected 2, got:", res.Status)
+	if res.Status != analysisErrorReadingDumpedResource {
+		t.Fatal("res.Status expected", analysisErrorReadingDumpedResource, "got:", res.Status)
 	}
 }
 
@@ -218,7 +218,7 @@ func TestCheckDeployConfigsReplicasNotZero(t *testing.T) {
 // Tests and mocks for CheckForWaitingPods
 //
 
-func MockPodsWithWaitingPod(p []string, d interface{}) error {
+func MockPodsWithWaitingPod(p string, d interface{}) error {
 	contents := `{
 		"items": [
 			{
@@ -251,7 +251,7 @@ func MockPodsWithWaitingPod(p []string, d interface{}) error {
 	return nil
 }
 
-func MockPodsWithoutWaitingPod(p []string, d interface{}) error {
+func MockPodsWithoutWaitingPod(p string, d interface{}) error {
 	contents := `{
 		"items": [
 			{
@@ -283,7 +283,7 @@ func MockPodsWithoutWaitingPod(p []string, d interface{}) error {
 	return nil
 }
 
-func MockEmptyPods(p []string, d interface{}) error {
+func MockEmptyPods(p string, d interface{}) error {
 	contents := `{
 		"items": [
 		]
@@ -302,8 +302,8 @@ func TestCheckForWaitingPods(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Status != 1 {
-		t.Fatal("res.Status expected: 1, got:", res.Status)
+	if res.Status != analysisErrorDiscoveredByAnalysis {
+		t.Fatal("res.Status expected:", analysisErrorDiscoveredByAnalysis, " got:", res.Status)
 	}
 	if res.Info[0].Count != 1 {
 		t.Fatal("res.Info[0].Count expected 1, got:" + string(res.Info[0].Count))
@@ -313,8 +313,8 @@ func TestCheckForWaitingPods(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Status != 0 {
-		t.Fatal("res.Status expected: 0, got:", res.Status)
+	if res.Status != analysisErrorNotDiscovered {
+		t.Fatal("res.Status expected:", analysisErrorNotDiscovered, "got:", res.Status)
 	}
 	if len(res.Info) != 0 {
 		t.Fatal("len(res.Info) expected 0, got:" + string(len(res.Info)))
@@ -324,8 +324,8 @@ func TestCheckForWaitingPods(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Status != 0 {
-		t.Fatal("res.Status expected: 0, got:", res.Status)
+	if res.Status != analysisErrorNotDiscovered {
+		t.Fatal("res.Status expected:", analysisErrorNotDiscovered, "got:", res.Status)
 	}
 	if len(res.Info) != 0 {
 		t.Fatal("len(res.Info) expected 0, got:" + string(len(res.Info)))
@@ -335,7 +335,7 @@ func TestCheckForWaitingPods(t *testing.T) {
 	if err == nil {
 		t.Fatal("CheckDeployConfigsReplicasNotZero(mockJSONResourceErrorFactory) expected error, got none")
 	}
-	if res.Status != 2 {
-		t.Fatal("res.Status expected 2, got:", res.Status)
+	if res.Status != analysisErrorReadingDumpedResource {
+		t.Fatal("res.Status expected ", analysisErrorReadingDumpedResource, "got:", res.Status)
 	}
 }
