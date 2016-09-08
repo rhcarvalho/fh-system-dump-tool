@@ -72,6 +72,15 @@ func readSpaceSeparated(r io.Reader) ([]string, error) {
 	return words, nil
 }
 
+// archive archives the target path to a tar.gz file.
+func archive(path string) error {
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command("tar", "-czf", path+".tar.gz", path)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	return cmd.Run()
+}
+
 func main() {
 	flag.Parse()
 
@@ -114,16 +123,11 @@ func main() {
 		// basePath. After that, logs will go only to stderr.
 		fileOnlyLogger.Printf("Dumped system information to: %s", basePath)
 
-		var stdout, stderr bytes.Buffer
-
-		cmd := exec.Command("tar", "-czf", basePath+".tar.gz", basePath)
-		cmd.Stdout = &stdout
-		cmd.Stderr = &stderr
-		if err := cmd.Run(); err != nil {
-			log.Printf("There was an error archiving the dumped data, so the dumped system information is stored unarchived in: %s", basePath)
+		if err := archive(basePath); err != nil {
+			fileOnlyLogger.Printf("Could not create data archive: %v", err)
+			log.Printf("Could not archive dump data, unarchived data in: %s", basePath)
 			return
 		}
-
 		// The archive was created successfully, remove basePath. The
 		// error from os.RemoveAll is intentionally ignored, since there
 		// is no useful action we can do, and we don't need to confuse
