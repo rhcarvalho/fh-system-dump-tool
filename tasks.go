@@ -170,9 +170,9 @@ func RunAllAnalysisTasks(runner Runner, path string, workers int) AnalysisResult
 		}
 
 		for result := range checkResults {
-			if result.Scope == "project" {
-				analysisResults["projects"][result.Name] = result.Results
-			} else if result.Scope == "platform" {
+			if result.Project != "" {
+				analysisResults["projects"][result.Project] = result.Results
+			} else {
 				analysisResults["platform"]["platform"] = result.Results
 			}
 

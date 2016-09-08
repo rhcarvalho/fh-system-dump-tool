@@ -126,11 +126,10 @@ func CheckProjectTask(project string, results chan<- CheckResults, JSONResourceF
 // A getProjectCheckFactory generates tasks to diagnose system conditions.
 type getProjectCheckFactory func() []CheckTask
 
-// CheckResults Stores the result of a check in a scope which can a specfic
-// project or platform-wide.
+// CheckResults stores the results of a check and the project in which the
+// checks were applied. For cluster-scoped checks, Project is the empty string.
 type CheckResults struct {
-	Scope   string `json:"scope"`
-	Name    string `json:"name,omitempty"`
+	Project string
 	Results []Result
 }
 
@@ -139,7 +138,7 @@ type CheckResults struct {
 // combined into a single JSON object and returned.
 func checkProjectTask(checkFactory getProjectCheckFactory, JSONResourceFactory DumpedJSONResourceFactory, project string, results chan<- CheckResults) Task {
 	return func() error {
-		result := CheckResults{Scope: "project", Name: project, Results: []Result{}}
+		result := CheckResults{Project: project, Results: []Result{}}
 		checks := checkFactory()
 
 		var errors errorList
