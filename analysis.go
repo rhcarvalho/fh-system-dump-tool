@@ -25,11 +25,11 @@ type Info struct {
 // Result is a result of a single check, it can have multiple Event and Info
 // objects attached to it.
 type Result struct {
-	CheckName     string  `json:"checkName" yaml:"checkName"`
-	Status        int     `json:"status" yaml:"status"`
-	StatusMessage string  `json:"statusMessage" yaml:"statusMessage"`
-	Info          []Info  `json:"info" yaml:"info"`
-	Events        []Event `json:"events" yaml:"events"`
+	CheckName     string  `json:"checkName"`
+	Status        int     `json:"status"`
+	StatusMessage string  `json:"statusMessage"`
+	Info          []Info  `json:"info"`
+	Events        []Event `json:"events"`
 }
 
 // Some of the types below are taken from:
