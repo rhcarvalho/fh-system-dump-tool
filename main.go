@@ -120,7 +120,7 @@ func main() {
 		cmd.Stdout = &stdout
 		cmd.Stderr = &stderr
 		if err := cmd.Run(); err != nil {
-			log.Printf("There was an error creating archiving the dumped data, so the dumped system information is stored unarchived in: %s", basePath)
+			log.Printf("There was an error archiving the dumped data, so the dumped system information is stored unarchived in: %s", basePath)
 			return
 		}
 
@@ -137,8 +137,14 @@ func main() {
 
 	runner := NewDumpRunner(basePath)
 
-	log.Print("Running dump tasks...")
+	log.Print("Running dump and analyse tasks...")
 	RunAllDumpTasks(runner, basePath, *concurrentTasks)
-	log.Print("Running analysis tasks...")
-	RunAllAnalysisTasks(runner, basePath, *concurrentTasks)
+	analysisResults := RunAllAnalysisTasks(runner, basePath, *concurrentTasks)
+
+	delta := time.Since(start)
+	// Remove sub-second precision.
+	delta -= delta % time.Second
+	log.Printf("Run all tasks in %v.", delta)
+
+	RunOutputTask(os.Stdout, os.Stderr, analysisResults)
 }

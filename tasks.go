@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 )
 
 // A Task performs some part of the RHMAP System Dump Tool.
@@ -18,8 +17,6 @@ type Task func() error
 // RunAllDumpTasks runs all tasks known to the dump tool using concurrent workers.
 // Dump output goes to path.
 func RunAllDumpTasks(runner Runner, path string, workers int) {
-	start := time.Now()
-
 	tasks := GetAllDumpTasks(runner, path)
 	results := make(chan error)
 
@@ -41,11 +38,8 @@ func RunAllDumpTasks(runner Runner, path string, workers int) {
 		close(results)
 	}()
 
-	taskCount := 0
-
 	// Loop through the task execution results and log errors.
 	for err := range results {
-		taskCount++
 		if err != nil {
 			// TODO: there should be a way to identify which task
 			// had an error.
@@ -56,11 +50,6 @@ func RunAllDumpTasks(runner Runner, path string, workers int) {
 		fmt.Fprint(os.Stderr, ".")
 	}
 	fmt.Fprintln(os.Stderr)
-
-	delta := time.Since(start)
-	// Remove sub-second precision.
-	delta -= delta % time.Second
-	log.Printf("Run %d dump tasks in %v.", taskCount, delta)
 }
 
 // GetAllDumpTasks returns a channel of all tasks known to the dump tool. It returns
@@ -146,9 +135,7 @@ func GetAllDumpTasks(runner Runner, basepath string) <-chan Task {
 }
 
 // RunAllAnalysisTasks runs all tasks known to the analysis tool using concurrent workers.
-func RunAllAnalysisTasks(runner Runner, path string, workers int) {
-	start := time.Now()
-
+func RunAllAnalysisTasks(runner Runner, path string, workers int) AnalysisResults {
 	checkResults := make(chan CheckResults)
 	tasks := GetAllAnalysisTasks(runner, path, checkResults)
 	results := make(chan error)
@@ -167,8 +154,14 @@ func RunAllAnalysisTasks(runner Runner, path string, workers int) {
 
 	// Listen to the checkResults channel and write all the results into
 	// the analysis.json file
+	var writeWait sync.WaitGroup
+	writeWait.Add(1)
+	analysisResults := AnalysisResults{}
+	analysisResults["projects"] = map[string][]Result{}
+	analysisResults["platform"] = map[string][]Result{}
+
 	go func() {
-		analysisResults := map[string][]Result{}
+		defer writeWait.Done()
 		filepath := filepath.Join(path, "analysis.json")
 		err := os.MkdirAll(path, 0770)
 		if err != nil {
@@ -177,7 +170,12 @@ func RunAllAnalysisTasks(runner Runner, path string, workers int) {
 		}
 
 		for result := range checkResults {
-			analysisResults[result.Scope] = result.Results
+			if result.Scope == "project" {
+				analysisResults["projects"][result.Name] = result.Results
+			} else if result.Scope == "platform" {
+				analysisResults["platform"]["platform"] = result.Results
+			}
+
 			output, err := json.MarshalIndent(analysisResults, "", "    ")
 			if err != nil {
 				results <- err
@@ -194,11 +192,8 @@ func RunAllAnalysisTasks(runner Runner, path string, workers int) {
 		close(results)
 	}()
 
-	taskCount := 0
-
 	// Loop through the task execution results and log errors.
 	for err := range results {
-		taskCount++
 		if err != nil {
 			// TODO: there should be a way to identify which task
 			// had an error.
@@ -209,11 +204,8 @@ func RunAllAnalysisTasks(runner Runner, path string, workers int) {
 		fmt.Fprint(os.Stderr, ".")
 	}
 	fmt.Fprintln(os.Stderr)
-
-	delta := time.Since(start)
-	// Remove sub-second precision.
-	delta -= delta % time.Second
-	log.Printf("Run %d analysis tasks in %v.", taskCount, delta)
+	writeWait.Wait()
+	return analysisResults
 }
 
 // GetAllAnalysisTasks returns a channel of all the analysis tasks known to the dump tool. It returns
