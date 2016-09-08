@@ -34,13 +34,6 @@ var (
 	printVersion    = flag.Bool("version", false, "print version and exit")
 )
 
-// FIXME: get rid of this, use a DumpRunner.
-type simpleRunner struct{}
-
-func (simpleRunner) Run(cmd *exec.Cmd, path string) error {
-	return cmd.Run()
-}
-
 // GetProjects returns a list of project names visible by the current logged in
 // user.
 func GetProjects(runner Runner) ([]string, error) {

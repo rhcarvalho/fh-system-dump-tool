@@ -75,3 +75,10 @@ func getResourceNamesBySubstr(project, resource, substr string) ([]string, error
 
 	return filtered, nil
 }
+
+// FIXME: get rid of this, use a DumpRunner.
+type simpleRunner struct{}
+
+func (simpleRunner) Run(cmd *exec.Cmd, path string) error {
+	return cmd.Run()
+}
