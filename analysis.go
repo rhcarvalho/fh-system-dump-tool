@@ -2,17 +2,20 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
+
+	"github.com/feedhenry/fh-system-dump-tool/openshift/api/types"
 )
 
 // A CheckResult is the result of some verification of the system conditions.
 type CheckResult struct {
-	CheckName string  `json:"name"`
-	Ok        bool    `json:"ok"`
-	Message   string  `json:"message"`
-	Info      []Info  `json:"info,omitempty"`
-	Events    []Event `json:"events,omitempty"`
+	CheckName string        `json:"name"`
+	Ok        bool          `json:"ok"`
+	Message   string        `json:"message"`
+	Info      []Info        `json:"info,omitempty"`
+	Events    []types.Event `json:"events,omitempty"`
 }
 
 // ProjectResult stores the results of checks in a project.
@@ -36,75 +39,6 @@ type Info struct {
 	Message   string `json:"message"`
 }
 
-// Some of the types below are taken from:
-// https://github.com/openshift/origin/blob/master/vendor/k8s.io/kubernetes/pkg/api/types.go
-// However the fields that were not required for our purposes were removed for brevity.
-// Currently the copied definitions are:
-// - ContainerStateWaiting
-
-// Event is a representation of the items in the OpenShift event log, this is
-// trimmed to only the required fields.
-type Event struct {
-	Kind           string `json:"kind"`
-	InvolvedObject struct {
-		Namespace string `json:"namespace"`
-		Name      string `json:"name"`
-	} `json:"involvedObject"`
-	Reason  string `json:"reason"`
-	Message string `json:"message"`
-	Count   int    `json:"count"`
-	Type    string `json:"type"`
-}
-
-// Events is a representation of everything in the OpenShift event log for a
-// particular project.
-type Events struct {
-	Items []Event `json:"items"`
-}
-
-// DeploymentConfigs is a representation of the OpenShift deployment configs.
-type DeploymentConfigs struct {
-	Items []struct {
-		Kind     string `json:"kind"`
-		Metadata struct {
-			Name      string `json:"name"`
-			Namespace string `json:"namespace"`
-		} `json:"metadata"`
-		Spec struct {
-			Replicas int `json:"replicas"`
-		} `json:"spec"`
-	} `json:"items"`
-}
-
-// ContainerStateWaiting is one possible status that a container can be in.
-type ContainerStateWaiting struct {
-	// A brief CamelCase string indicating details about why the container is in waiting state.
-	Reason string `json:"reason,omitempty"`
-	// A human-readable message indicating details about why the container is in waiting state.
-	Message string `json:"message,omitempty"`
-}
-
-// Pods is a representation of all the pods in a project from OpenShift.
-type Pods struct {
-	Items []struct {
-		Metadata struct {
-			Name      string `json:"name"`
-			Namespace string `json:"namespace"`
-		} `json:"metadata"`
-		Status struct {
-			ContainerStatuses []struct {
-				Name  string `json:"name"`
-				State struct {
-					Waiting *ContainerStateWaiting `json:"waiting,omitempty"`
-				} `json:"state"`
-			} `json:"containerStatuses"`
-		} `json:"status"`
-	} `json:"items"`
-}
-
-// CheckTask is the interface which checks must implement.
-type CheckTask func(DumpedJSONResourceFactory) (CheckResult, error)
-
 // GetAnalysisTasks creates all the analysis tasks and sends them one by one
 // down the tasks Channel.
 func GetAnalysisTasks(tasks chan<- Task, basepath string, projects []string, results chan<- AnalysisResult) {
@@ -112,146 +46,134 @@ func GetAnalysisTasks(tasks chan<- Task, basepath string, projects []string, res
 
 	// Project-specific analysis goes here.
 	for _, p := range projects {
-		JSONResourceFactory := getDumpedJSONResourceFactory(filepath.Join(basepath, "projects", p))
-		tasks <- CheckProjectTask(p, results, JSONResourceFactory)
+		definition := &definitionLoader{basepath: basepath, project: p}
+		tasks <- CheckProjectTask(p, definition, results)
 	}
 }
 
-// CheckProjectTask is a task factory for tasks that diagnose system conditions.
-func CheckProjectTask(project string, results chan<- AnalysisResult, JSONResourceFactory DumpedJSONResourceFactory) Task {
-	return checkProjectTask(func() []CheckTask {
-		return []CheckTask{CheckEventLogForErrors, CheckDeployConfigsReplicasNotZero, CheckForWaitingPods}
-	}, JSONResourceFactory, project, results)
-}
-
-// A getProjectCheckFactory generates tasks to diagnose system conditions.
-type getProjectCheckFactory func() []CheckTask
-
-// checkTasks executes all the CheckTasks returned from the supplied
-// checkFactory against the specified project. The results of the checks are
-// combined into a single JSON object and returned.
-func checkProjectTask(checkFactory getProjectCheckFactory, JSONResourceFactory DumpedJSONResourceFactory, project string, results chan<- AnalysisResult) Task {
+// CheckProjectTask returns a task that diagnoses problems in the project scope.
+func CheckProjectTask(project string, definition DefinitionLoader, results chan<- AnalysisResult) Task {
 	return func() error {
 		result := ProjectResult{Project: project}
-		checks := checkFactory()
 
-		var errors errorList
-		for _, check := range checks {
-			res, err := check(JSONResourceFactory)
-			if err != nil {
-				errors = append(errors, err)
-			}
-			result.Results = append(result.Results, res)
+		var (
+			events            types.EventList
+			deploymentConfigs types.DeploymentConfigList
+			pods              types.PodList
+		)
 
+		definition.Load("events", &events)
+		definition.Load("deploymentconfigs", &deploymentConfigs)
+		definition.Load("pods", &pods)
+
+		if err := definition.Err(); err != nil {
+			return err
 		}
+
+		result.Results = append(result.Results,
+			CheckEvents(events),
+			CheckDeploymentConfigs(deploymentConfigs),
+			CheckPods(pods),
+		)
 
 		results <- AnalysisResult{Projects: []ProjectResult{result}}
 
-		if len(errors) > 0 {
-			return errors
-		}
 		return nil
 	}
 }
 
-// DumpedJSONResourceFactory takes a string containing the path to a
-// JSON file which will be parsed and loaded into the supplied interface.
-type DumpedJSONResourceFactory func(string, interface{}) error
-
-// getDumpedJSONResourceFactory returns a factory which will load resource from
-// a given basepath. The factory parses the file contents as JSON and loads it
-// into the provided dest interface.
-func getDumpedJSONResourceFactory(basepath string) DumpedJSONResourceFactory {
-	return func(path string, dest interface{}) error {
-		contents, err := ioutil.ReadFile(filepath.Join(basepath, path))
-		if err != nil {
-			return err
-		}
-		return json.Unmarshal(contents, dest)
-	}
+// A DefinitionLoader loads definitions of OpenShift resources.
+type DefinitionLoader interface {
+	Load(kind string, v interface{})
+	Err() error
 }
 
-// CheckForWaitingPods checks all pods for any containers in waiting status.
-func CheckForWaitingPods(JSONResourceFactory DumpedJSONResourceFactory) (CheckResult, error) {
+// definitionLoader loads JSON resource definitions from files.
+type definitionLoader struct {
+	basepath, project string
+	err               error
+}
+
+func (l *definitionLoader) Load(kind string, v interface{}) {
+	if l.err != nil {
+		return
+	}
+	path := filepath.Join(l.basepath, "projects", l.project, "definitions", kind+".json")
+	l.err = load(path, &v)
+}
+
+func (l *definitionLoader) Err() error {
+	return l.err
+}
+
+// load loads JSON resource from a given path into dest.
+func load(path string, dest interface{}) error {
+	contents, err := ioutil.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(contents, dest)
+}
+
+// CheckPods checks all pods for any containers in waiting status.
+func CheckPods(pods types.PodList) CheckResult {
 	result := CheckResult{
 		CheckName: "check pods for containers in waiting state",
 		Ok:        true,
 		Message:   "this issue was not detected",
 	}
-	var pods Pods
-	if err := JSONResourceFactory(filepath.Join("definitions", "pods.json"), &pods); err != nil {
-		result.Ok = false
-		result.Message = "Error executing task: " + err.Error()
-		return result, err
-	}
-
 	for _, pod := range pods.Items {
 		for _, container := range pod.Status.ContainerStatuses {
 			if container.State.Waiting != nil {
 				result.Ok = false
 				result.Message = "one or more containers are in waiting state"
-				msg := "container " + container.Name + " in pod " + pod.Metadata.Name + " is in waiting state"
-				info := Info{Name: container.Name, Namespace: pod.Metadata.Namespace, Message: msg}
-				result.Info = append(result.Info, info)
+				result.Info = append(result.Info, Info{
+					Name:      container.Name,
+					Namespace: pod.ObjectMeta.Namespace,
+					Message:   fmt.Sprintf("container %s in pod %s is in waiting state", container.Name, pod.ObjectMeta.Name),
+				})
 			}
 		}
 	}
-
-	return result, nil
+	return result
 }
 
-// CheckEventLogForErrors checks all events in the supplied project and if any
-// are not type 'Normal' (i.e. Warning or Error), it will add them to the
-// returned results.
-func CheckEventLogForErrors(JSONResourceFactory DumpedJSONResourceFactory) (CheckResult, error) {
+// CheckEvents checks all events looking for events which type is not Normal
+// (i.e., Warning or Error).
+func CheckEvents(events types.EventList) CheckResult {
 	result := CheckResult{
 		CheckName: "check event log for errors",
 		Ok:        true,
 		Message:   "this issue was not detected",
 	}
-	var events Events
-	if err := JSONResourceFactory(filepath.Join("definitions", "events.json"), &events); err != nil {
-		result.Ok = false
-		result.Message = "Error executing task: " + err.Error()
-		return result, err
-	}
-
 	for _, event := range events.Items {
 		if event.Type != "Normal" {
 			result.Ok = false
-			result.Message = "Errors detected in event log"
+			result.Message = "errors detected in event log"
 			result.Events = append(result.Events, event)
 		}
 	}
-
-	return result, nil
+	return result
 }
 
-// CheckDeployConfigsReplicasNotZero checks all deployment configs in the
-// supplied JSON Resource Factory, and if any are found with a replica of 0, it
-// will add a note about it to the returned result.
-func CheckDeployConfigsReplicasNotZero(ResourceFactory DumpedJSONResourceFactory) (CheckResult, error) {
+// CheckDeploymentConfigs checks that all deployment configs have a non-zero
+// number of replicas configured.
+func CheckDeploymentConfigs(deploymentConfigs types.DeploymentConfigList) CheckResult {
 	result := CheckResult{
 		CheckName: "check number of replicas in deployment configs",
 		Ok:        true,
 		Message:   "this issue was not detected",
 	}
-	var deploymentConfigs DeploymentConfigs
-	err := ResourceFactory(filepath.Join("definitions", "deploymentconfigs.json"), &deploymentConfigs)
-	if err != nil {
-		result.Ok = false
-		result.Message = "Error executing task: " + err.Error()
-		return result, err
-	}
-
 	for _, deploymentConfig := range deploymentConfigs.Items {
 		if deploymentConfig.Spec.Replicas == 0 {
-			info := Info{Name: deploymentConfig.Metadata.Name, Namespace: deploymentConfig.Metadata.Namespace, Message: "the replica parameter is set to 0, this should be greater than 0"}
 			result.Ok = false
-			result.Message = "one or more deployConfig replicas are set to 0"
-			result.Info = append(result.Info, info)
+			result.Message = "one or more deployment configs has number of replicas set to 0"
+			result.Info = append(result.Info, Info{
+				Name:      deploymentConfig.ObjectMeta.Name,
+				Namespace: deploymentConfig.ObjectMeta.Namespace,
+				Message:   "the replica parameter is set to 0, this should be greater than 0",
+			})
 		}
 	}
-
-	return result, nil
+	return result
 }
