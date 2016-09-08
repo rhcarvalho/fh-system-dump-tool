@@ -124,6 +124,7 @@ func main() {
 		fileOnlyLogger.Printf("Dumped system information to: %s", basePath)
 
 		if err := archive(basePath); err != nil {
+			fileOnlyLogger.Printf("Could not create data archive: %v", err)
 			log.Printf("Could not archive dump data, unarchived data in: %s", basePath)
 			return
 		}
