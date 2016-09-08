@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"time"
 )
 
@@ -34,57 +33,6 @@ var (
 	maxLogLines     = flag.Int("max-log-lines", defaultMaxLogLines, "max number of log lines fetched with oc logs")
 	printVersion    = flag.Bool("version", false, "print version and exit")
 )
-
-func runCmdCaptureOutput(cmd *exec.Cmd, out, errOut io.Writer) error {
-	cmd.Stdout = out
-
-	// Send stderr to an in-memory buffer used to enrich error messages.
-	var buf bytes.Buffer
-	cmd.Stderr = &buf
-	if errOut != nil {
-		// If errOut is non-nil, also send stderr to it.
-		cmd.Stderr = io.MultiWriter(cmd.Stderr, errOut)
-	}
-
-	// TODO: limit the execution time with a timeout.
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("command %q: %v: %v", strings.Join(cmd.Args, " "), err, buf.String())
-	}
-	return nil
-}
-
-func runCmdCaptureOutputDeprecated(cmd *exec.Cmd, project, resource string, outFor, errOutFor projectResourceWriterCloserFactory) error {
-	var err error
-	var stdoutCloser, stderrCloser io.Closer
-
-	cmd.Stdout, stdoutCloser, err = outFor(project, resource)
-	if err != nil {
-		// Since we couldn't get an io.Writer for cmd.Stdout, give up
-		// processing this resource type.
-		return err
-	}
-	defer stdoutCloser.Close()
-
-	var buf bytes.Buffer
-	cmd.Stderr, stderrCloser, err = errOutFor(project, resource)
-	if err != nil {
-		// We can possibly try to run the command without an io.Writer
-		// from errOutFor. In this case, we'll attach an in-memory
-		// buffer so that we can include the stderr output in errors.
-		cmd.Stderr = &buf
-	} else {
-		defer stderrCloser.Close()
-		// Send stderr to both the io.Writer from errOutFor, and an
-		// in-memory buffer, used to enrich error messages.
-		cmd.Stderr = io.MultiWriter(cmd.Stderr, &buf)
-	}
-
-	// TODO: limit the execution time with a timeout.
-	if err = cmd.Run(); err != nil {
-		return fmt.Errorf("command %q: %v: %v", strings.Join(cmd.Args, " "), err, buf.String())
-	}
-	return nil
-}
 
 // FIXME: get rid of this, use a DumpRunner.
 type simpleRunner struct{}
