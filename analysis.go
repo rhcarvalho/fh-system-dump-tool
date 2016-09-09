@@ -28,8 +28,8 @@ type Result struct {
 	CheckName     string  `json:"checkName"`
 	Status        int     `json:"status"`
 	StatusMessage string  `json:"statusMessage"`
-	Info          []Info  `json:"info"`
-	Events        []Event `json:"events"`
+	Info          []Info  `json:"info,omitempty"`
+	Events        []Event `json:"events,omitempty"`
 }
 
 // Some of the types below are taken from:
@@ -179,7 +179,7 @@ func getDumpedJSONResourceFactory(basepath string) DumpedJSONResourceFactory {
 
 // CheckForWaitingPods checks all pods for any containers in waiting status.
 func CheckForWaitingPods(JSONResourceFactory DumpedJSONResourceFactory) (Result, error) {
-	result := Result{Status: analysisErrorNotDiscovered, StatusMessage: "this issue was not detected", CheckName: "check pods for 'waiting' containers", Info: []Info{}, Events: []Event{}}
+	result := Result{Status: analysisErrorNotDiscovered, StatusMessage: "this issue was not detected", CheckName: "check pods for 'waiting' containers"}
 	var pods Pods
 	if err := JSONResourceFactory(filepath.Join("definitions", "pods.json"), &pods); err != nil {
 		result.Status = analysisErrorReadingDumpedResource
@@ -206,7 +206,7 @@ func CheckForWaitingPods(JSONResourceFactory DumpedJSONResourceFactory) (Result,
 // are not type 'Normal' (i.e. Warning or Error), it will add them to the
 // returned results.
 func CheckEventLogForErrors(JSONResourceFactory DumpedJSONResourceFactory) (Result, error) {
-	result := Result{Status: analysisErrorNotDiscovered, StatusMessage: "this issue was not detected", CheckName: "check eventlog for any errors", Info: []Info{}, Events: []Event{}}
+	result := Result{Status: analysisErrorNotDiscovered, StatusMessage: "this issue was not detected", CheckName: "check eventlog for any errors"}
 	var events Events
 	if err := JSONResourceFactory(filepath.Join("definitions", "events.json"), &events); err != nil {
 		result.Status = analysisErrorReadingDumpedResource
@@ -229,7 +229,7 @@ func CheckEventLogForErrors(JSONResourceFactory DumpedJSONResourceFactory) (Resu
 // supplied JSON Resource Factory, and if any are found with a replica of 0, it
 // will add a note about it to the returned result.
 func CheckDeployConfigsReplicasNotZero(ResourceFactory DumpedJSONResourceFactory) (Result, error) {
-	result := Result{Status: analysisErrorNotDiscovered, StatusMessage: "this issue was not detected", CheckName: "check deployconfig replicas not 0", Info: []Info{}, Events: []Event{}}
+	result := Result{Status: analysisErrorNotDiscovered, StatusMessage: "this issue was not detected", CheckName: "check deployconfig replicas not 0"}
 	var deploymentConfigs DeploymentConfigs
 	err := ResourceFactory(filepath.Join("definitions", "deploymentconfigs.json"), &deploymentConfigs)
 	if err != nil {
