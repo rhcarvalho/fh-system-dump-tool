@@ -35,7 +35,7 @@ func GetNagiosStatusData(r Runner, project, pod string) Task {
 		cmd := exec.Command("oc", "-n", project, "exec", pod, "--", "cat", "/var/log/nagios/status.dat")
 		fname := pod + "_status.dat"
 		path := filepath.Join("projects", project, "nagios", fname)
-		return r.Run(cmd, path)
+		return MarkErrorAsIgnorable(r.Run(cmd, path))
 	}
 }
 
@@ -46,7 +46,7 @@ func GetNagiosHistoricalData(r Runner, project, pod string) Task {
 		cmd := exec.Command("oc", "-n", project, "exec", pod, "--", "tar", "-c", "-C", "/var/log/nagios", "archives")
 		fname := pod + "_history.tar"
 		path := filepath.Join("projects", project, "nagios", fname)
-		return r.Run(cmd, path)
+		return MarkErrorAsIgnorable(r.Run(cmd, path))
 	}
 }
 

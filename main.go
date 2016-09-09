@@ -142,7 +142,7 @@ func main() {
 	runner := NewDumpRunner(basePath)
 
 	log.Print("Running dump and analyse tasks...")
-	RunAllDumpTasks(runner, basePath, *concurrentTasks)
+	RunAllDumpTasks(runner, basePath, *concurrentTasks, fileOnlyLogger)
 	analysisResults := RunAllAnalysisTasks(runner, basePath, *concurrentTasks)
 
 	delta := time.Since(start)

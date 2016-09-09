@@ -21,7 +21,7 @@ func GetOpenShiftMetadataTasks(tasks chan<- Task, runner Runner, projects []stri
 		tasks <- func() error {
 			cmd := exec.Command("oc", args...)
 			path := filepath.Join("meta", "oc_"+strings.Join(args, "_"))
-			return runner.Run(cmd, path)
+			return MarkErrorAsIgnorable(runner.Run(cmd, path))
 		}
 	}
 	for _, p := range projects {
@@ -29,7 +29,7 @@ func GetOpenShiftMetadataTasks(tasks chan<- Task, runner Runner, projects []stri
 		tasks <- func() error {
 			cmd := exec.Command("oc", "-n", p, "policy", "can-i", "--list")
 			path := filepath.Join("meta", "projects", p, "oc_-n_"+p+"_policy_can-i_--list")
-			return runner.Run(cmd, path)
+			return MarkErrorAsIgnorable(runner.Run(cmd, path))
 		}
 	}
 }

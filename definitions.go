@@ -39,6 +39,6 @@ func ResourceDefinition(r Runner, project, resource string) Task {
 		tree = append(tree, "definitions", fname)
 
 		path := filepath.Join(tree...)
-		return r.Run(cmd, path)
+		return MarkErrorAsIgnorable(r.Run(cmd, path))
 	}
 }

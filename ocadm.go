@@ -7,6 +7,6 @@ func GetOcAdmDiagnosticsTask(runner Runner) Task {
 	return func() error {
 		cmd := exec.Command("oc", "adm", "diagnostics")
 		path := "oc_adm_diagnostics"
-		return runner.Run(cmd, path)
+		return MarkErrorAsIgnorable(runner.Run(cmd, path))
 	}
 }
