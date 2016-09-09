@@ -201,9 +201,6 @@ func TestCheckDeployConfigsReplicasNotZero(t *testing.T) {
 	if res.Status != analysisErrorDiscoveredByAnalysis {
 		t.Fatal("res.Status expected:", analysisErrorDiscoveredByAnalysis, "got:", res.Status)
 	}
-	if res.Info[0].Count != 1 {
-		t.Fatal("res.Info[0].Count expected 1, got:" + string(res.Info[0].Count))
-	}
 
 	res, err = CheckDeployConfigsReplicasNotZero(mockJSONResourceErrorFactory)
 	if err == nil {
@@ -304,9 +301,6 @@ func TestCheckForWaitingPods(t *testing.T) {
 	}
 	if res.Status != analysisErrorDiscoveredByAnalysis {
 		t.Fatal("res.Status expected:", analysisErrorDiscoveredByAnalysis, " got:", res.Status)
-	}
-	if res.Info[0].Count != 1 {
-		t.Fatal("res.Info[0].Count expected 1, got:" + string(res.Info[0].Count))
 	}
 
 	res, err = CheckForWaitingPods(MockPodsWithoutWaitingPod)

@@ -18,7 +18,6 @@ type Info struct {
 	Name      string
 	Namespace string
 	Kind      string
-	Count     int
 	Message   string
 }
 
@@ -193,7 +192,7 @@ func CheckForWaitingPods(JSONResourceFactory DumpedJSONResourceFactory) (Result,
 				result.Status = analysisErrorDiscoveredByAnalysis
 				result.StatusMessage = "Waiting containers have been detected"
 				msg := "container " + container.Name + " in pod " + pod.Metadata.Name + " is in waiting state"
-				info := Info{Name: container.Name, Count: 1, Namespace: pod.Metadata.Namespace, Kind: "container", Message: msg}
+				info := Info{Name: container.Name, Namespace: pod.Metadata.Namespace, Kind: "container", Message: msg}
 				result.Info = append(result.Info, info)
 			}
 		}
@@ -240,7 +239,7 @@ func CheckDeployConfigsReplicasNotZero(ResourceFactory DumpedJSONResourceFactory
 
 	for _, deploymentConfig := range deploymentConfigs.Items {
 		if deploymentConfig.Spec.Replicas == 0 {
-			info := Info{Name: deploymentConfig.Metadata.Name, Namespace: deploymentConfig.Metadata.Namespace, Kind: deploymentConfig.Kind, Count: 1, Message: "the replica parameter is set to 0, this should be greater than 0"}
+			info := Info{Name: deploymentConfig.Metadata.Name, Namespace: deploymentConfig.Metadata.Namespace, Kind: deploymentConfig.Kind, Message: "the replica parameter is set to 0, this should be greater than 0"}
 			result.Status = analysisErrorDiscoveredByAnalysis
 			result.StatusMessage = "one or more deployConfig replicas are set to 0"
 			result.Info = append(result.Info, info)
