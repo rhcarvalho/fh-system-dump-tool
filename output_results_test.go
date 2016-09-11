@@ -9,31 +9,22 @@ import (
 
 func mockAnalysisNoErrors(p string, d interface{}) error {
 	contents := `{
-		"projects": {
-			"dev": [
-				{
-					"checkName": "check eventlog for any errors",
-					"status": 0,
-					"statusMessage": "this issue was not detected",
-					"info": [],
-					"events": []
-				},
-				{
-					"checkName": "check deployconfig replicas not 0",
-					"status": 0,
-					"statusMessage": "this issue was not detected",
-					"info": [],
-					"events": []
-				},
-				{
-					"checkName": "check pods for 'waiting' containers",
-					"status": 0,
-					"statusMessage": "this issue was not detected",
-					"info": [],
-					"events": []
-				}
-			]
-		}
+		"projects": [{
+			"project": "dev",
+			"checks": [{
+				"checkName": "check event log for errors",
+				"ok": true,
+				"message": "this issue was not detected"
+			}, {
+				"checkName": "check number of replicas in deployment configs",
+				"ok": true,
+				"message": "this issue was not detected"
+			}, {
+				"checkName": "check pods for containers in waiting state",
+				"ok": true,
+				"message": "this issue was not detected"
+			}]
+		}]
 	}`
 
 	decoder := json.NewDecoder(bytes.NewBuffer([]byte(contents)))
@@ -46,29 +37,25 @@ func mockAnalysisNoErrors(p string, d interface{}) error {
 
 func mockAnalysisErrors(p string, d interface{}) error {
 	contents := `{
-		"projects": {
-			"rhmap-core": [
-				{
-					"checkName": "check eventlog for any errors",
-					"status": 1,
-					"statusMessage": "Errors detected in event log",
-					"info": [],
-					"events": [
-						{
-							"kind": "Event",
-							"involvedObject": {
-								"namespace": "rhmap-core",
-								"name": "fh-ngui"
-							},
-							"reason": "FailedUpdate",
-							"message": "Cannot update deployment rhmap-core/fh-ngui-3 status to Pending: replicationcontrollers \"fh-ngui-3\" cannot be updated: the object has been modified; please apply your changes to the latest version and try again",
-							"count": 1,
-							"type": "Warning"
-						}
-					]
-				}
-			]
-		}
+		"projects": [{
+			"project": "rhmap-core",
+			"checks": [{
+				"checkName": "check event log for errors",
+				"ok": false,
+				"message": "Errors detected in event log",
+				"events": [{
+					"kind": "Event",
+					"involvedObject": {
+						"namespace": "rhmap-core",
+						"name": "fh-ngui"
+					},
+					"reason": "FailedUpdate",
+					"message": "Cannot update deployment rhmap-core/fh-ngui-3 status to Pending: replicationcontrollers \"fh-ngui-3\" cannot be updated: the object has been modified; please apply your changes to the latest version and try again",
+					"count": 1,
+					"type": "Warning"
+				}]
+			}]
+		}]
 	}`
 
 	decoder := json.NewDecoder(bytes.NewBuffer([]byte(contents)))
@@ -82,11 +69,11 @@ func mockAnalysisErrors(p string, d interface{}) error {
 func TestRunOutputTaskNoErrors(t *testing.T) {
 	o := bytes.NewBuffer([]byte{})
 	e := bytes.NewBuffer([]byte{})
-	analysisResults := AnalysisResults{}
-	if err := mockAnalysisNoErrors("", &analysisResults); err != nil {
+	var analysisResult AnalysisResult
+	if err := mockAnalysisNoErrors("", &analysisResult); err != nil {
 		t.Fatal(err)
 	}
-	RunOutputTask(o, e, analysisResults)
+	RunOutputTask(o, e, analysisResult)
 
 	if got := len(o.Bytes()); got > 0 {
 		t.Fatal("len(o.Bytes()), expected: 0, got:", got)
@@ -99,11 +86,11 @@ func TestRunOutputTaskNoErrors(t *testing.T) {
 func TestRunOutputTaskFoundErrors(t *testing.T) {
 	o := bytes.NewBuffer([]byte{})
 	e := bytes.NewBuffer([]byte{})
-	analysisResults := AnalysisResults{}
-	if err := mockAnalysisErrors("", &analysisResults); err != nil {
+	var analysisResult AnalysisResult
+	if err := mockAnalysisErrors("", &analysisResult); err != nil {
 		t.Fatal(err)
 	}
-	RunOutputTask(o, e, analysisResults)
+	RunOutputTask(o, e, analysisResult)
 
 	if !strings.Contains(string(o.Bytes()), "rhmap-core") {
 		t.Fatal("string(o.Bytes()), expected: to contain 'rhmap-core', got:", string(o.Bytes()))
