@@ -83,7 +83,9 @@ func TestRunOutputTaskNoErrors(t *testing.T) {
 	o := bytes.NewBuffer([]byte{})
 	e := bytes.NewBuffer([]byte{})
 	analysisResults := AnalysisResults{}
-	mockAnalysisNoErrors("", &analysisResults)
+	if err := mockAnalysisNoErrors("", &analysisResults); err != nil {
+		t.Fatal(err)
+	}
 	RunOutputTask(o, e, analysisResults)
 
 	if got := len(o.Bytes()); got > 0 {
@@ -98,7 +100,9 @@ func TestRunOutputTaskFoundErrors(t *testing.T) {
 	o := bytes.NewBuffer([]byte{})
 	e := bytes.NewBuffer([]byte{})
 	analysisResults := AnalysisResults{}
-	mockAnalysisErrors("", &analysisResults)
+	if err := mockAnalysisErrors("", &analysisResults); err != nil {
+		t.Fatal(err)
+	}
 	RunOutputTask(o, e, analysisResults)
 
 	if !strings.Contains(string(o.Bytes()), "rhmap-core") {
