@@ -18,18 +18,18 @@ func mockJSONResourceFactory(p string, d interface{}) error {
 	return nil
 }
 
-func mockTestOne(loader DumpedJSONResourceFactory) (Result, error) {
-	result := Result{StatusMessage: "Called mockTestOne"}
+func mockTestOne(loader DumpedJSONResourceFactory) (CheckResult, error) {
+	result := CheckResult{Message: "Called mockTestOne"}
 	return result, nil
 }
 
-func mockTestTwo(loader DumpedJSONResourceFactory) (Result, error) {
-	result := Result{StatusMessage: "Called mockTestTwo"}
+func mockTestTwo(loader DumpedJSONResourceFactory) (CheckResult, error) {
+	result := CheckResult{Message: "Called mockTestTwo"}
 	return result, errors.New("FAIL")
 }
 
 func TestCheckTasksWithFail(t *testing.T) {
-	results := make(chan CheckResults, 1)
+	results := make(chan AnalysisResult, 1)
 	defer close(results)
 	task := checkProjectTask(mockCheckFactoryOnePassOneFail, mockJSONResourceFactory, "MockProject", results)
 
@@ -40,13 +40,13 @@ func TestCheckTasksWithFail(t *testing.T) {
 	}
 
 	result := <-results
-	if (len(result.Results)) != 2 {
-		t.Fatal("Expected 2 check results, got: " + string(len(result.Results)))
+	if len(result.Projects[0].Results) != 2 {
+		t.Fatal("Expected 2 check results, got: " + string(len(result.Projects[0].Results)))
 	}
 }
 
 func TestCheckTasksWithPass(t *testing.T) {
-	results := make(chan CheckResults, 1)
+	results := make(chan AnalysisResult, 1)
 	defer close(results)
 	task := checkProjectTask(mockCheckFactoryOnePass, mockJSONResourceFactory, "MockProject", results)
 
@@ -57,8 +57,8 @@ func TestCheckTasksWithPass(t *testing.T) {
 	}
 
 	result := <-results
-	if (len(result.Results)) != 1 {
-		t.Fatal("Expected 1 check results, got: " + string(len(result.Results)))
+	if len(result.Projects[0].Results) != 1 {
+		t.Fatal("Expected 1 check results, got: " + string(len(result.Projects[0].Results)))
 	}
 }
 
@@ -123,8 +123,8 @@ func TestCheckEventLogForErrors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Status != analysisErrorDiscoveredByAnalysis {
-		t.Fatal("res.Status expected:", analysisErrorDiscoveredByAnalysis, "got:", res.Status)
+	if res.Ok {
+		t.Fatalf("res.Ok = %v, want %v", res.Ok, false)
 	}
 	if len(res.Events) != 1 {
 		t.Fatal("len(res.Events) expected: 1, got:", len(res.Events))
@@ -143,8 +143,8 @@ func TestCheckEventLogForErrors(t *testing.T) {
 	if err == nil {
 		t.Fatal("CheckEventLogForErrors(mockJSONResourceErrorFactory) expected error, got none")
 	}
-	if res.Status != analysisErrorReadingDumpedResource {
-		t.Fatal("res.Status expected:", analysisErrorReadingDumpedResource, "got:", res.Status)
+	if res.Ok {
+		t.Fatalf("res.Ok = %v, want %v", res.Ok, false)
 	}
 }
 
@@ -198,19 +198,16 @@ func TestCheckDeployConfigsReplicasNotZero(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Status != analysisErrorDiscoveredByAnalysis {
-		t.Fatal("res.Status expected:", analysisErrorDiscoveredByAnalysis, "got:", res.Status)
-	}
-	if res.Info[0].Count != 1 {
-		t.Fatal("res.Info[0].Count expected 1, got:" + string(res.Info[0].Count))
+	if res.Ok {
+		t.Fatalf("res.Ok = %v, want %v", res.Ok, false)
 	}
 
 	res, err = CheckDeployConfigsReplicasNotZero(mockJSONResourceErrorFactory)
 	if err == nil {
 		t.Fatal("CheckDeployConfigsReplicasNotZero(mockJSONResourceErrorFactory) expected error, got none")
 	}
-	if res.Status != analysisErrorReadingDumpedResource {
-		t.Fatal("res.Status expected", analysisErrorReadingDumpedResource, "got:", res.Status)
+	if res.Ok {
+		t.Fatalf("res.Ok = %v, want %v", res.Ok, false)
 	}
 }
 
@@ -302,19 +299,16 @@ func TestCheckForWaitingPods(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Status != analysisErrorDiscoveredByAnalysis {
-		t.Fatal("res.Status expected:", analysisErrorDiscoveredByAnalysis, " got:", res.Status)
-	}
-	if res.Info[0].Count != 1 {
-		t.Fatal("res.Info[0].Count expected 1, got:" + string(res.Info[0].Count))
+	if res.Ok {
+		t.Fatalf("res.Ok = %v, want %v", res.Ok, false)
 	}
 
 	res, err = CheckForWaitingPods(MockPodsWithoutWaitingPod)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Status != analysisErrorNotDiscovered {
-		t.Fatal("res.Status expected:", analysisErrorNotDiscovered, "got:", res.Status)
+	if !res.Ok {
+		t.Fatalf("res.Ok = %v, want %v", res.Ok, true)
 	}
 	if len(res.Info) != 0 {
 		t.Fatal("len(res.Info) expected 0, got:" + string(len(res.Info)))
@@ -324,8 +318,8 @@ func TestCheckForWaitingPods(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Status != analysisErrorNotDiscovered {
-		t.Fatal("res.Status expected:", analysisErrorNotDiscovered, "got:", res.Status)
+	if !res.Ok {
+		t.Fatalf("res.Ok = %v, want %v", res.Ok, true)
 	}
 	if len(res.Info) != 0 {
 		t.Fatal("len(res.Info) expected 0, got:" + string(len(res.Info)))
@@ -335,7 +329,7 @@ func TestCheckForWaitingPods(t *testing.T) {
 	if err == nil {
 		t.Fatal("CheckDeployConfigsReplicasNotZero(mockJSONResourceErrorFactory) expected error, got none")
 	}
-	if res.Status != analysisErrorReadingDumpedResource {
-		t.Fatal("res.Status expected ", analysisErrorReadingDumpedResource, "got:", res.Status)
+	if res.Ok {
+		t.Fatalf("res.Ok = %v, want %v", res.Ok, false)
 	}
 }

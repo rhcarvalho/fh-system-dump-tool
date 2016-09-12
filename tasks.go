@@ -135,9 +135,9 @@ func GetAllDumpTasks(runner Runner, basepath string) <-chan Task {
 }
 
 // RunAllAnalysisTasks runs all tasks known to the analysis tool using concurrent workers.
-func RunAllAnalysisTasks(runner Runner, path string, workers int) AnalysisResults {
-	checkResults := make(chan CheckResults)
-	tasks := GetAllAnalysisTasks(runner, path, checkResults)
+func RunAllAnalysisTasks(runner Runner, path string, workers int) AnalysisResult {
+	analysisResults := make(chan AnalysisResult)
+	tasks := GetAllAnalysisTasks(runner, path, analysisResults)
 	results := make(chan error)
 
 	// Start worker goroutines to run tasks concurrently.
@@ -156,9 +156,7 @@ func RunAllAnalysisTasks(runner Runner, path string, workers int) AnalysisResult
 	// the analysis.json file
 	var writeWait sync.WaitGroup
 	writeWait.Add(1)
-	analysisResults := AnalysisResults{}
-	analysisResults["projects"] = map[string][]Result{}
-	analysisResults["platform"] = map[string][]Result{}
+	var analysisResult AnalysisResult
 
 	go func() {
 		defer writeWait.Done()
@@ -169,14 +167,11 @@ func RunAllAnalysisTasks(runner Runner, path string, workers int) AnalysisResult
 			return
 		}
 
-		for result := range checkResults {
-			if result.Scope == "project" {
-				analysisResults["projects"][result.Name] = result.Results
-			} else if result.Scope == "platform" {
-				analysisResults["platform"]["platform"] = result.Results
-			}
+		for result := range analysisResults {
+			analysisResult.Platform = append(analysisResult.Platform, result.Platform...)
+			analysisResult.Projects = append(analysisResult.Projects, result.Projects...)
 
-			output, err := json.MarshalIndent(analysisResults, "", "    ")
+			output, err := json.MarshalIndent(analysisResult, "", "    ")
 			if err != nil {
 				results <- err
 			}
@@ -188,7 +183,7 @@ func RunAllAnalysisTasks(runner Runner, path string, workers int) AnalysisResult
 	// communicate that no more results will be sent.
 	go func() {
 		wg.Wait()
-		close(checkResults)
+		close(analysisResults)
 		close(results)
 	}()
 
@@ -205,14 +200,14 @@ func RunAllAnalysisTasks(runner Runner, path string, workers int) AnalysisResult
 	}
 	fmt.Fprintln(os.Stderr)
 	writeWait.Wait()
-	return analysisResults
+	return analysisResult
 }
 
 // GetAllAnalysisTasks returns a channel of all the analysis tasks known to the dump tool. It returns
 // immediately and sends tasks to the channel in a separate goroutine. The channel is closed after
 // all tasks are sent.
 // FIXME: GetAllAnalysisTasks should not need to know about basepath.
-func GetAllAnalysisTasks(runner Runner, basepath string, results chan<- CheckResults) <-chan Task {
+func GetAllAnalysisTasks(runner Runner, basepath string, results chan<- AnalysisResult) <-chan Task {
 	tasks := make(chan Task)
 	go func() {
 		defer close(tasks)
