@@ -4,6 +4,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -81,6 +82,18 @@ func archive(path string) error {
 	return cmd.Run()
 }
 
+func checkPrerequisites() error {
+	if _, err := exec.LookPath("oc"); err != nil {
+		return errors.New("oc command not found, please install the OpenShift CLI before using this tool")
+	}
+	// This serves as a sort of "ping" to the server, to make sure we are
+	// logged in and can access the server before we issue more calls.
+	if err := exec.Command("oc", "whoami").Run(); err != nil {
+		return errors.New("could not access OpenShift, please run 'oc login' and make sure that a user is logged in and the server is accessible")
+	}
+	return nil
+}
+
 func main() {
 	flag.Parse()
 
@@ -92,6 +105,10 @@ func main() {
 	if !(*concurrentTasks > 0) {
 		fmt.Fprintln(os.Stderr, "Error: argument to -p flag must be greater than 0")
 		os.Exit(1)
+	}
+
+	if err := checkPrerequisites(); err != nil {
+		log.Fatalln("Error:", err)
 	}
 
 	start := time.Now().UTC()
