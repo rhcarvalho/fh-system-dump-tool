@@ -180,7 +180,7 @@ func getDumpedJSONResourceFactory(basepath string) DumpedJSONResourceFactory {
 // CheckForWaitingPods checks all pods for any containers in waiting status.
 func CheckForWaitingPods(JSONResourceFactory DumpedJSONResourceFactory) (Result, error) {
 	result := Result{Status: analysisErrorNotDiscovered, StatusMessage: "this issue was not detected", CheckName: "check pods for 'waiting' containers", Info: []Info{}, Events: []Event{}}
-	pods := Pods{}
+	var pods Pods
 	if err := JSONResourceFactory(filepath.Join("definitions", "pods.json"), &pods); err != nil {
 		result.Status = analysisErrorReadingDumpedResource
 		result.StatusMessage = "Error executing task: " + err.Error()
@@ -207,7 +207,7 @@ func CheckForWaitingPods(JSONResourceFactory DumpedJSONResourceFactory) (Result,
 // returned results.
 func CheckEventLogForErrors(JSONResourceFactory DumpedJSONResourceFactory) (Result, error) {
 	result := Result{Status: analysisErrorNotDiscovered, StatusMessage: "this issue was not detected", CheckName: "check eventlog for any errors", Info: []Info{}, Events: []Event{}}
-	events := Events{}
+	var events Events
 	if err := JSONResourceFactory(filepath.Join("definitions", "events.json"), &events); err != nil {
 		result.Status = analysisErrorReadingDumpedResource
 		result.StatusMessage = "Error executing task: " + err.Error()
@@ -230,7 +230,7 @@ func CheckEventLogForErrors(JSONResourceFactory DumpedJSONResourceFactory) (Resu
 // will add a note about it to the returned result.
 func CheckDeployConfigsReplicasNotZero(ResourceFactory DumpedJSONResourceFactory) (Result, error) {
 	result := Result{Status: analysisErrorNotDiscovered, StatusMessage: "this issue was not detected", CheckName: "check deployconfig replicas not 0", Info: []Info{}, Events: []Event{}}
-	deploymentConfigs := DeploymentConfigs{}
+	var deploymentConfigs DeploymentConfigs
 	err := ResourceFactory(filepath.Join("definitions", "deploymentconfigs.json"), &deploymentConfigs)
 	if err != nil {
 		result.Status = analysisErrorReadingDumpedResource
