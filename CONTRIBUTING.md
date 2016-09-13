@@ -29,6 +29,24 @@ directory. It is recommended that GOPATH/bin is part of your PATH environment
 variable.
 
 
+## Testing
+
+Pull Requests are automatically tested using [Travis
+CI](https://travis-ci.org/). You can run the same tests locally during development:
+
+```
+make -k ci
+```
+
+That will run several verifications involving code formatting, unit tests, etc.
+The `-k` flag tells `make` to keep running even if one of the verifications
+fail. If you want to to terminate after encountering the first problem, omit
+that flag.
+
+To see what commands are used for testing, look at the output of `make -n ci`.
+Refer to the [Makefile](Makefile) to see how each verification is implemented.
+
+
 ## Releasing
 
 To release a new version:
