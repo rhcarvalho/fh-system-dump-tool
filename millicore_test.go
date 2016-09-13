@@ -37,13 +37,14 @@ func TestMillicorePodError(t *testing.T) {
 	tasks := make(chan Task, 1)
 	runner := &FakeRunner{}
 
+	want := errors.New("error retrieving pods")
+
 	GetMillicoreConfigTasks(tasks, runner, []string{"project1"}, func(project, resource, substr string) ([]string, error) {
-		return nil, errors.New("error retrieving pods")
+		return nil, want
 	})
 
 	task := <-tasks
-	err := task()
-	if err.Error() != "error retrieving pods" {
-		t.Fatalf("Task(): Want: error retrieving pods, Got: " + err.Error())
+	if err := task(); err != want {
+		t.Fatalf("task() = %v, want %v", err, want)
 	}
 }
