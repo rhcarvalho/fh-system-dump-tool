@@ -14,9 +14,14 @@ import (
 // A Task performs some part of the RHMAP System Dump Tool.
 type Task func() error
 
+// Logger is a minimal interface implemented by log.Logger.
+type Logger interface {
+	Printf(format string, v ...interface{})
+}
+
 // RunAllDumpTasks runs all tasks known to the dump tool using concurrent workers.
 // Dump output goes to path.
-func RunAllDumpTasks(runner Runner, path string, workers int) {
+func RunAllDumpTasks(runner Runner, path string, workers int, fileOnlyLogger Logger) {
 	tasks := GetAllDumpTasks(runner, path)
 	results := make(chan error)
 
@@ -41,6 +46,10 @@ func RunAllDumpTasks(runner Runner, path string, workers int) {
 	// Loop through the task execution results and log errors.
 	for err := range results {
 		if err != nil {
+			if ierr, ok := err.(IgnorableError); ok && ierr.Ignore() {
+				fileOnlyLogger.Printf("Task error: %v", err)
+				continue
+			}
 			// TODO: there should be a way to identify which task
 			// had an error.
 			fmt.Fprintln(os.Stderr)

@@ -121,6 +121,6 @@ func ocLogs(r Runner, resource LoggableResource, maxLines int, extraArgs []strin
 			filename += "_" + resource.Container
 		}
 		path := filepath.Join("projects", resource.Project, what, filename+".logs")
-		return r.Run(cmd, path)
+		return MarkErrorAsIgnorable(r.Run(cmd, path))
 	}
 }
