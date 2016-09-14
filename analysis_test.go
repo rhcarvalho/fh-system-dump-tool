@@ -1,335 +1,306 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
-	"errors"
+	"fmt"
+	"reflect"
 	"testing"
+
+	"github.com/feedhenry/fh-system-dump-tool/openshift/api/types"
 )
 
-func mockCheckFactoryOnePassOneFail() []CheckTask {
-	return []CheckTask{mockTestOne, mockTestTwo}
-}
-func mockCheckFactoryOnePass() []CheckTask {
-	return []CheckTask{mockTestOne}
-}
-
-func mockJSONResourceFactory(p string, d interface{}) error {
-	return nil
-}
-
-func mockTestOne(loader DumpedJSONResourceFactory) (CheckResult, error) {
-	result := CheckResult{Message: "Called mockTestOne"}
-	return result, nil
-}
-
-func mockTestTwo(loader DumpedJSONResourceFactory) (CheckResult, error) {
-	result := CheckResult{Message: "Called mockTestTwo"}
-	return result, errors.New("FAIL")
-}
-
-func TestCheckTasksWithFail(t *testing.T) {
-	results := make(chan AnalysisResult, 1)
-	defer close(results)
-	task := checkProjectTask(mockCheckFactoryOnePassOneFail, mockJSONResourceFactory, "MockProject", results)
-
-	err := task()
-
-	if err == nil {
-		t.Fatal("Expected error")
-	}
-
-	result := <-results
-	if len(result.Projects[0].Results) != 2 {
-		t.Fatal("Expected 2 check results, got: " + string(len(result.Projects[0].Results)))
-	}
-}
-
-func TestCheckTasksWithPass(t *testing.T) {
-	results := make(chan AnalysisResult, 1)
-	defer close(results)
-	task := checkProjectTask(mockCheckFactoryOnePass, mockJSONResourceFactory, "MockProject", results)
-
-	err := task()
-
-	if err != nil {
-		t.Fatal("Expected no error, got:", err)
-	}
-
-	result := <-results
-	if len(result.Projects[0].Results) != 1 {
-		t.Fatal("Expected 1 check results, got: " + string(len(result.Projects[0].Results)))
-	}
-}
-
-func mockJSONResourceErrorFactory(p string, d interface{}) error {
-	return errors.New("mock error")
-}
-
-//
-// Tests and mocks for CheckEventLogForErrors
-//
-
-func mockEventLogWithWarningFactory(p string, d interface{}) error {
-	contents := `{
-		"kind": "List",
-		"apiVersion": "v1",
-		"metadata": {},
-		"items": [
-			{
-				"kind": "Event",
-				"apiVersion": "v1",
-				"metadata": {
-					"name": "mongodb-2-1-x66za.14691ab157eb4089",
-					"namespace": "qe-3node-4-1",
-					"selfLink": "/api/v1/namespaces/qe-3node-4-1/events/mongodb-2-1-x66za.14691ab157eb4089",
-					"uid": "68dd0b95-5e16-11e6-a344-0abb8905d551",
-					"resourceVersion": "9471053",
-					"creationTimestamp": "2016-08-09T09:48:22Z",
-					"deletionTimestamp": "2016-08-23T16:04:30Z"
+var (
+	podOk = types.Pod{
+		ObjectMeta: types.ObjectMeta{
+			Name:      "mongodb-2-1-x66za",
+			Namespace: "qe-3node-4-1",
+		},
+		Status: types.PodStatus{
+			ContainerStatuses: []types.ContainerStatus{
+				{
+					Name:  "mongodb-service",
+					State: types.ContainerState{},
 				},
-				"involvedObject": {
-					"kind": "Pod",
-					"namespace": "qe-3node-4-1",
-					"name": "mongodb-2-1-x66za",
-					"uid": "915b7b41-5d33-11e6-9064-0abb8905d551",
-					"apiVersion": "v1",
-					"resourceVersion": "7932636"
-				},
-				"reason": "FailedSync",
-				"message": "Error syncing pod, skipping: API error (500): Unknown device 84d72d4cf06a1e292ba21c36c5c93638ccd3c4cfab8bf048bd434ff9cdf43722\n",
-				"source": {
-					"component": "kubelet",
-					"host": "10.10.0.141"
-				},
-				"firstTimestamp": "2016-08-09T09:48:22Z",
-				"lastTimestamp": "2016-08-23T14:04:30Z",
-				"count": 94215,
-				"type": "Warning"
-			}
-		]
-	}`
-
-	decoder := json.NewDecoder(bytes.NewBuffer([]byte(contents)))
-	err := decoder.Decode(&d)
-	if err != nil {
-		return err
+			},
+		},
 	}
-	return nil
-}
-
-func TestCheckEventLogForErrors(t *testing.T) {
-	res, err := CheckEventLogForErrors(mockEventLogWithWarningFactory)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.Ok {
-		t.Fatalf("res.Ok = %v, want %v", res.Ok, false)
-	}
-	if len(res.Events) != 1 {
-		t.Fatal("len(res.Events) expected: 1, got:", len(res.Events))
-	}
-	if res.Events[0].Count != 94215 {
-		t.Fatal("res.Events[0].Count expected: 94215, got:", string(res.Events[0].Count))
-	}
-	if res.Events[0].Type != "Warning" {
-		t.Fatal("res.Events[0].Type expected: 'Warning', got: '" + res.Events[0].Type + "'")
-	}
-	if res.Events[0].Reason != "FailedSync" {
-		t.Fatal("res.Events[0].Reason expected: 'FailedSync', got: '" + res.Events[0].Reason + "'")
-	}
-
-	res, err = CheckEventLogForErrors(mockJSONResourceErrorFactory)
-	if err == nil {
-		t.Fatal("CheckEventLogForErrors(mockJSONResourceErrorFactory) expected error, got none")
-	}
-	if res.Ok {
-		t.Fatalf("res.Ok = %v, want %v", res.Ok, false)
-	}
-}
-
-//
-// Tests and mocks for CheckDeployConfigsReplicasNotZero
-//
-
-func MockDeployConfigWithReplicaZero(p string, d interface{}) error {
-	contents := `{
-		"kind": "List",
-		"apiVersion": "v1",
-		"metadata": {},
-		"items": [
-			{
-				"kind": "DeploymentConfig",
-				"apiVersion": "v1",
-				"metadata": {
-					"name": "fh-mbaas",
-					"namespace": "qe-3node-4-1",
-					"labels": {
-						"name": "fh-mbaas"
-					}
-				},
-				"spec": {
-					"replicas": 0,
-					"selector": {
-						"name": "fh-mbaas"
+	podWaiting = types.Pod{
+		ObjectMeta: types.ObjectMeta{
+			Name:      "mongodb-2-1-x66za",
+			Namespace: "qe-3node-4-1",
+		},
+		Status: types.PodStatus{
+			ContainerStatuses: []types.ContainerStatus{
+				{
+					Name: "mongodb-service",
+					State: types.ContainerState{
+						Waiting: &types.ContainerStateWaiting{
+							Reason:  "ContainerCreating",
+							Message: "Image: docker.io/rhmap/mongodb:centos-3.2-29 is ready, container is creating",
+						},
 					},
-					"template": {
-						"metadata": {
-							"labels": {
-								"name": "fh-mbaas"
-							}
-						}
-					}
-				}
-			}
-		]
-	}`
-
-	decoder := json.NewDecoder(bytes.NewBuffer([]byte(contents)))
-	err := decoder.Decode(&d)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func TestCheckDeployConfigsReplicasNotZero(t *testing.T) {
-	res, err := CheckDeployConfigsReplicasNotZero(MockDeployConfigWithReplicaZero)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.Ok {
-		t.Fatalf("res.Ok = %v, want %v", res.Ok, false)
-	}
-
-	res, err = CheckDeployConfigsReplicasNotZero(mockJSONResourceErrorFactory)
-	if err == nil {
-		t.Fatal("CheckDeployConfigsReplicasNotZero(mockJSONResourceErrorFactory) expected error, got none")
-	}
-	if res.Ok {
-		t.Fatalf("res.Ok = %v, want %v", res.Ok, false)
-	}
-}
-
-//
-// Tests and mocks for CheckForWaitingPods
-//
-
-func MockPodsWithWaitingPod(p string, d interface{}) error {
-	contents := `{
-		"items": [
-			{
-				"metadata": {
-					"name": "mongodb-2-1-x66za",
-					"namespace": "qe-3node-4-1"
 				},
-				"status": {
-					"containerStatuses": [
-						{
-							"name": "mongodb-service",
-							"state": {
-								"waiting": {
-									"reason": "ContainerCreating",
-									"message": "Image: docker.io/rhmap/mongodb:centos-3.2-29 is ready, container is creating"
-								}
-							}
-						}
-					]
-				}
-			}
-		]
-	}`
-
-	decoder := json.NewDecoder(bytes.NewBuffer([]byte(contents)))
-	err := decoder.Decode(&d)
-	if err != nil {
-		return err
+			},
+		},
 	}
-	return nil
+)
+
+var (
+	normalEvent = types.Event{
+		Message: "Test message",
+		Type:    "Normal",
+	}
+	warningEvent = types.Event{
+		TypeMeta: types.TypeMeta{Kind: "Event"},
+		InvolvedObject: types.ObjectReference{
+			Kind:      "Pod",
+			Namespace: "qe-3node-4-1",
+			Name:      "mongodb-2-1-x66za",
+		},
+		Reason:  "FailedSync",
+		Message: "Error syncing pod, skipping: API error (500): Unknown device 84d72d4cf06a1e292ba21c36c5c93638ccd3c4cfab8bf048bd434ff9cdf43722\n",
+		Count:   94215,
+		Type:    "Warning",
+	}
+)
+
+var (
+	dcZeroReplicas = types.DeploymentConfig{
+		ObjectMeta: types.ObjectMeta{
+			Name:      "fh-mbaas",
+			Namespace: "qe-3node-4-1",
+		},
+		Spec: types.DeploymentConfigSpec{
+			Replicas: 0,
+		},
+	}
+)
+
+func TestCheckEvents(t *testing.T) {
+	tests := []struct {
+		description string
+		eventList   types.EventList
+		want        CheckResult
+	}{
+		{
+			description: "warning event",
+			eventList: types.EventList{
+				Items: []types.Event{warningEvent},
+			},
+			want: CheckResult{
+				CheckName: "check event log for errors",
+				Ok:        false,
+				Message:   "errors detected in event log",
+				Events:    []types.Event{warningEvent},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		if got := CheckEvents(tt.eventList); !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("%s: CheckEvents(eventList) = \n%#v, want \n%#v", tt.description, got, tt.want)
+		}
+	}
 }
 
-func MockPodsWithoutWaitingPod(p string, d interface{}) error {
-	contents := `{
-		"items": [
-			{
-				"metadata": {
-					"name": "mongodb-2-1-x66za",
-					"namespace": "qe-3node-4-1"
+func TestCheckDeploymentConfigs(t *testing.T) {
+	tests := []struct {
+		description string
+		dcList      types.DeploymentConfigList
+		want        CheckResult
+	}{
+		{
+			description: "deployment config with zero replicas",
+			dcList: types.DeploymentConfigList{
+				Items: []types.DeploymentConfig{dcZeroReplicas},
+			},
+			want: CheckResult{
+				CheckName: "check number of replicas in deployment configs",
+				Ok:        false,
+				Message:   "one or more deployment configs has number of replicas set to 0",
+				Info: []Info{
+					{
+						Name:      dcZeroReplicas.ObjectMeta.Name,
+						Namespace: dcZeroReplicas.ObjectMeta.Namespace,
+						Message:   "the replica parameter is set to 0, this should be greater than 0",
+					},
 				},
-				"status": {
-					"containerStatuses": [
+			},
+		},
+	}
+	for _, tt := range tests {
+		if got := CheckDeploymentConfigs(tt.dcList); !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("%s: CheckDeploymentConfigs(dcList) = \n%#v, want \n%#v", tt.description, got, tt.want)
+		}
+	}
+}
+
+func TestCheckPods(t *testing.T) {
+	tests := []struct {
+		description string
+		podList     types.PodList
+		want        CheckResult
+	}{
+		{
+			description: "empty pod list",
+			podList: types.PodList{
+				Items: []types.Pod{},
+			},
+			want: CheckResult{
+				CheckName: "check pods for containers in waiting state",
+				Ok:        true,
+				Message:   "this issue was not detected",
+			},
+		},
+		{
+			description: "pod without container in waiting state",
+			podList: types.PodList{
+				Items: []types.Pod{podOk},
+			},
+			want: CheckResult{
+				CheckName: "check pods for containers in waiting state",
+				Ok:        true,
+				Message:   "this issue was not detected",
+			},
+		},
+		{
+			description: "pod with container in waiting state",
+			podList: types.PodList{
+				Items: []types.Pod{podWaiting},
+			},
+			want: CheckResult{
+				CheckName: "check pods for containers in waiting state",
+				Ok:        false,
+				Message:   "one or more containers are in waiting state",
+				Info: []Info{
+					{
+						Name:      podWaiting.Status.ContainerStatuses[0].Name,
+						Namespace: podWaiting.ObjectMeta.Namespace,
+						Message:   "container mongodb-service in pod mongodb-2-1-x66za is in waiting state",
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		if got := CheckPods(tt.podList); !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("%s: CheckPods(podList) = \n%#v, want \n%#v", tt.description, got, tt.want)
+		}
+	}
+}
+
+func TestCheckProjectTask(t *testing.T) {
+	tests := []struct {
+		project    string
+		definition DefinitionLoader
+		want       []CheckResult
+	}{
+		{
+			project:    "rhmap-project",
+			definition: fakeDefinitionLoader{},
+			want: []CheckResult{
+				{
+					CheckName: "check event log for errors",
+					Ok:        true,
+					Message:   "this issue was not detected",
+				},
+				{
+					CheckName: "check number of replicas in deployment configs",
+					Ok:        true,
+					Message:   "this issue was not detected",
+				},
+				{
+					CheckName: "check pods for containers in waiting state",
+					Ok:        true,
+					Message:   "this issue was not detected",
+				},
+			},
+		},
+		{
+			project: "bad-project",
+			definition: fakeDefinitionLoader{
+				"events": types.EventList{
+					Items: []types.Event{normalEvent, warningEvent},
+				},
+				"deploymentconfigs": types.DeploymentConfigList{
+					Items: []types.DeploymentConfig{dcZeroReplicas},
+				},
+				"pods": types.PodList{
+					Items: []types.Pod{podOk, podWaiting},
+				},
+			},
+			want: []CheckResult{
+				{
+					CheckName: "check event log for errors",
+					Ok:        false,
+					Message:   "errors detected in event log",
+					Events:    []types.Event{warningEvent},
+				},
+				{
+					CheckName: "check number of replicas in deployment configs",
+					Ok:        false,
+					Message:   "one or more deployment configs has number of replicas set to 0",
+					Info: []Info{
 						{
-							"name": "mongodb-service",
-							"state": {
-								"running": {
-									"startedAt": "2016-07-14T11:08:00Z"
-								}
-							}
-						}
-					]
-				}
-			}
-		]
-	}`
-
-	decoder := json.NewDecoder(bytes.NewBuffer([]byte(contents)))
-	err := decoder.Decode(&d)
-	if err != nil {
-		return err
+							Name:      dcZeroReplicas.ObjectMeta.Name,
+							Namespace: dcZeroReplicas.ObjectMeta.Namespace,
+							Message:   "the replica parameter is set to 0, this should be greater than 0",
+						},
+					},
+				},
+				{
+					CheckName: "check pods for containers in waiting state",
+					Ok:        false,
+					Message:   "one or more containers are in waiting state",
+					Info: []Info{
+						{
+							Name:      podWaiting.Status.ContainerStatuses[0].Name,
+							Namespace: podWaiting.ObjectMeta.Namespace,
+							Message: fmt.Sprintf("container %s in pod %s is in waiting state",
+								podWaiting.Status.ContainerStatuses[0].Name, podWaiting.ObjectMeta.Name),
+						},
+					},
+				},
+			},
+		},
 	}
+	for i, tt := range tests {
+		results := make(chan AnalysisResult, 1)
+		task := CheckProjectTask(tt.project, tt.definition, results)
+
+		if err := task(); err != nil {
+			t.Errorf("%d: task() = %v, want %v", i, err, nil)
+		}
+
+		want := AnalysisResult{
+			Projects: []ProjectResult{
+				{
+					Project: tt.project,
+					Results: tt.want,
+				},
+			},
+		}
+		if result := <-results; !reflect.DeepEqual(result, want) {
+			t.Errorf("%d: result = \n%#v, want \n%#v", i, result, want)
+		}
+	}
+}
+
+type fakeDefinitionLoader map[string]interface{}
+
+func (l fakeDefinitionLoader) Load(kind string, v interface{}) {
+	val := map[string]interface{}(l)[kind]
+	b, err := json.Marshal(val)
+	if err != nil {
+		panic(err)
+	}
+	if err := json.Unmarshal(b, v); err != nil {
+		panic(err)
+	}
+}
+
+func (l fakeDefinitionLoader) Err() error {
 	return nil
 }
 
-func MockEmptyPods(p string, d interface{}) error {
-	contents := `{
-		"items": [
-		]
-	}`
-
-	decoder := json.NewDecoder(bytes.NewBuffer([]byte(contents)))
-	err := decoder.Decode(&d)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func TestCheckForWaitingPods(t *testing.T) {
-	res, err := CheckForWaitingPods(MockPodsWithWaitingPod)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.Ok {
-		t.Fatalf("res.Ok = %v, want %v", res.Ok, false)
-	}
-
-	res, err = CheckForWaitingPods(MockPodsWithoutWaitingPod)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !res.Ok {
-		t.Fatalf("res.Ok = %v, want %v", res.Ok, true)
-	}
-	if len(res.Info) != 0 {
-		t.Fatal("len(res.Info) expected 0, got:" + string(len(res.Info)))
-	}
-
-	res, err = CheckForWaitingPods(MockEmptyPods)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !res.Ok {
-		t.Fatalf("res.Ok = %v, want %v", res.Ok, true)
-	}
-	if len(res.Info) != 0 {
-		t.Fatal("len(res.Info) expected 0, got:" + string(len(res.Info)))
-	}
-
-	res, err = CheckForWaitingPods(mockJSONResourceErrorFactory)
-	if err == nil {
-		t.Fatal("CheckDeployConfigsReplicasNotZero(mockJSONResourceErrorFactory) expected error, got none")
-	}
-	if res.Ok {
-		t.Fatalf("res.Ok = %v, want %v", res.Ok, false)
-	}
-}
+var _ DefinitionLoader = (*fakeDefinitionLoader)(nil)
