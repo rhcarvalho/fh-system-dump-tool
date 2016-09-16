@@ -158,14 +158,18 @@ func main() {
 
 	runner := NewDumpRunner(basePath)
 
-	log.Print("Running dump and analyse tasks...")
+	log.Print("Collecting system information...")
 	RunAllDumpTasks(runner, basePath, *concurrentTasks, fileOnlyLogger)
+
+	log.Print("Analyzing data...")
 	analysisResults := RunAllAnalysisTasks(runner, basePath, *concurrentTasks)
 
 	delta := time.Since(start)
 	// Remove sub-second precision.
 	delta -= delta % time.Second
-	log.Printf("Run all tasks in %v.", delta)
+	if delta > time.Second {
+		log.Printf("Finished in %v", delta)
+	}
 
 	RunOutputTask(os.Stdout, os.Stderr, analysisResults)
 }
