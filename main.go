@@ -159,7 +159,17 @@ func main() {
 	runner := NewDumpRunner(basePath)
 
 	log.Print("Collecting system information...")
-	RunAllDumpTasks(runner, basePath, *concurrentTasks, fileOnlyLogger)
+	errs := RunAllDumpTasks(runner, basePath, *concurrentTasks, os.Stderr)
+
+	for _, err := range errs {
+		if ierr, ok := err.(IgnorableError); ok && ierr.Ignore() {
+			fileOnlyLogger.Printf("Task error: %v", err)
+			continue
+		}
+		// TODO: there should be a way to identify which task
+		// had an error.
+		log.Printf("Task error: %v", err)
+	}
 
 	log.Print("Analyzing data...")
 	analysisResults := RunAllAnalysisTasks(runner, basePath, *concurrentTasks)
