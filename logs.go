@@ -84,7 +84,8 @@ func GetPodContainers(runner Runner, project, name string) ([]string, error) {
 	if err := runner.Run(cmd, filepath.Join("projects", project, "pods", name, "container-names")); err != nil {
 		return nil, err
 	}
-	return readSpaceSeparated(&b)
+	names, err := readSpaceSeparated(&b)
+	return names, MarkErrorAsIgnorable(err)
 }
 
 // FetchLogs is a task factory for tasks that fetch the logs of a
