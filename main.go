@@ -35,6 +35,11 @@ var (
 	printVersion    = flag.Bool("version", false, "print version and exit")
 )
 
+// showAllErrors enables printing of ignorable errors, suitable for debugging.
+// This is intentionally not exposed as a flag, and shall stay intentionally
+// undocumented, used for development only.
+var _, showAllErrors = os.LookupEnv("FH_SYSTEM_DUMP_TOOL_DEBUG")
+
 // GetProjects returns a list of project names visible by the current logged in
 // user.
 func GetProjects(runner Runner) ([]string, error) {
@@ -162,7 +167,7 @@ func main() {
 	errs := RunAllDumpTasks(runner, basePath, *concurrentTasks, os.Stderr)
 
 	for _, err := range errs {
-		if ierr, ok := err.(IgnorableError); ok && ierr.Ignore() {
+		if ierr, ok := err.(IgnorableError); !showAllErrors && ok && ierr.Ignore() {
 			fileOnlyLogger.Printf("Task error: %v", err)
 			continue
 		}
