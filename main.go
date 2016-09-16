@@ -186,5 +186,5 @@ func main() {
 		log.Printf("Finished in %v", delta)
 	}
 
-	RunOutputTask(os.Stdout, os.Stderr, analysisResults)
+	PrintAnalysisReport(analysisResults, os.Stdout)
 }
