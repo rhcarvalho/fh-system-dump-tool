@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -19,9 +20,12 @@ type Logger interface {
 	Printf(format string, v ...interface{})
 }
 
-// RunAllDumpTasks runs all tasks known to the dump tool using concurrent workers.
-// Dump output goes to path.
-func RunAllDumpTasks(runner Runner, path string, workers int, fileOnlyLogger Logger) {
+// RunAllDumpTasks runs all tasks known to the dump tool using concurrent
+// workers and returns task errors. Dump output goes to path. Progress is
+// communicated by writing to out.
+func RunAllDumpTasks(runner Runner, path string, workers int, out io.Writer) []error {
+	var errs []error
+
 	tasks := GetAllDumpTasks(runner, path)
 	results := make(chan error)
 
@@ -46,19 +50,13 @@ func RunAllDumpTasks(runner Runner, path string, workers int, fileOnlyLogger Log
 	// Loop through the task execution results and log errors.
 	for err := range results {
 		if err != nil {
-			if ierr, ok := err.(IgnorableError); ok && ierr.Ignore() {
-				fileOnlyLogger.Printf("Task error: %v", err)
-				continue
-			}
-			// TODO: there should be a way to identify which task
-			// had an error.
-			fmt.Fprintln(os.Stderr)
-			log.Printf("Task error: %v", err)
-			continue
+			errs = append(errs, err)
 		}
-		fmt.Fprint(os.Stderr, ".")
+		fmt.Fprint(out, ".")
 	}
-	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(out)
+
+	return errs
 }
 
 // GetAllDumpTasks returns a channel of all tasks known to the dump tool. It returns

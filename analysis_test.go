@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/feedhenry/fh-system-dump-tool/openshift/api/types"
@@ -304,3 +306,102 @@ func (l fakeDefinitionLoader) Err() error {
 }
 
 var _ DefinitionLoader = (*fakeDefinitionLoader)(nil)
+
+func TestPrintAnalysisReport(t *testing.T) {
+	tests := []struct {
+		description    string
+		analysisResult AnalysisResult
+		// set want for exact matches or contains/notContains for
+		// inexact matches.
+		want        string
+		contains    []string
+		notContains []string
+	}{
+		{
+			description:    "empty analysis",
+			analysisResult: AnalysisResult{},
+			want:           "No issues found\n",
+		},
+		{
+			description: "no errors",
+			analysisResult: AnalysisResult{
+				Projects: []ProjectResult{
+					{
+						Project: "dev",
+						Results: []CheckResult{
+							{
+								CheckName: "check event log for errors",
+								Ok:        true,
+								Message:   "this issue was not detected",
+							},
+							{
+								CheckName: "check number of replicas in deployment configs",
+								Ok:        true,
+								Message:   "this issue was not detected",
+							},
+							{
+								CheckName: "check pods for containers in waiting state",
+								Ok:        true,
+								Message:   "this issue was not detected",
+							},
+						},
+					},
+				},
+			},
+			want: "No issues found\n",
+		},
+		{
+			description: "errors found",
+			analysisResult: AnalysisResult{
+				Projects: []ProjectResult{
+					{
+						Project: "rhmap-core",
+						Results: []CheckResult{
+							{
+								CheckName: "check event log for errors",
+								Ok:        false,
+								Message:   "errors detected in event log",
+								Events: []types.Event{
+									{
+										TypeMeta: types.TypeMeta{Kind: "Event"},
+										InvolvedObject: types.ObjectReference{
+											Namespace: "rhmap-core",
+											Name:      "fh-ngui",
+										},
+										Reason:  "FailedUpdate",
+										Message: "Cannot update deployment rhmap-core/fh-ngui-3 status to Pending: replicationcontrollers \"fh-ngui-3\" cannot be updated: the object has been modified; please apply your changes to the latest version and try again",
+										Count:   1,
+										Type:    "Warning",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			contains:    []string{"rhmap-core", "fh-ngui", "Cannot update deployment"},
+			notContains: []string{"No issues found"},
+		},
+	}
+	for _, tt := range tests {
+		var out bytes.Buffer
+		PrintAnalysisReport(tt.analysisResult, &out)
+		got := out.String()
+		if len(tt.contains) > 0 || len(tt.notContains) > 0 {
+			for _, want := range tt.contains {
+				if !strings.Contains(got, want) {
+					t.Errorf("%s: got %q, want to contain %q", tt.description, got, want)
+				}
+			}
+			for _, notWant := range tt.notContains {
+				if strings.Contains(got, notWant) {
+					t.Errorf("%s: got %q, want not to contain %q", tt.description, got, notWant)
+				}
+			}
+		} else {
+			if got != tt.want {
+				t.Errorf("%s: got %q, want %q", tt.description, got, tt.want)
+			}
+		}
+	}
+}
