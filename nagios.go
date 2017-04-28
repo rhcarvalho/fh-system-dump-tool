@@ -24,7 +24,7 @@ func GetNagiosTasks(tasks chan<- Task, runner Runner, projects []string) {
 		}
 	}
 	if !foundANagiosPod {
-		tasks <- NewError(errors.New("A Nagios pod could not be found in any project. For a more thorough analysis, please ensure Nagios is running in all RHMAP projects."))
+		tasks <- NewError(errors.New("a Nagios pod could not be found in any project. For a more thorough analysis, please ensure Nagios is running in all RHMAP projects"))
 	}
 }
 
