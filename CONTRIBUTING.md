@@ -54,6 +54,7 @@ To release a new version:
 * Tag a new version, e.g., `v0.1.0`
 * Create a new __Release__ from the [releases](https://github.com/feedhenry/fh-system-dump-tool/releases) page
 * Add some info about the release
-* Build a release binary using `make`
-* Upload the built binary
-* Publish it
+* Run `git fetch --tags` and make sure you have the tag you've just created
+* Build a release binary using `make release` (requires Docker)
+* Upload the built archive in the `dist/` directory
+* Publish the release
